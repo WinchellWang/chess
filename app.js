@@ -1,0 +1,676 @@
+import { Chess } from "./vendor/chess.js";
+
+const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"];
+const RANKS = "87654321";
+const AI_SEARCH_DEPTH = 4;
+const PIECE_IMAGES = {
+  p: { w: "./assets/pieces/white_pawn.svg", b: "./assets/pieces/black_pawn.svg" },
+  r: { w: "./assets/pieces/white_rook.svg", b: "./assets/pieces/black_rook.svg" },
+  n: { w: "./assets/pieces/white_knight.svg", b: "./assets/pieces/black_knight.svg" },
+  b: { w: "./assets/pieces/white_bishop.svg", b: "./assets/pieces/black_bishop.svg" },
+  q: { w: "./assets/pieces/white_queen.svg", b: "./assets/pieces/black_queen.svg" },
+  k: { w: "./assets/pieces/white_king.svg", b: "./assets/pieces/black_king.svg" },
+};
+
+const game = new Chess();
+const state = {
+  mode: null,
+  humanColor: "w",
+  selected: null,
+  legalMoves: [],
+  pendingPromotion: null,
+  aiThinking: false,
+  winner: null,
+};
+
+const landingEl = document.getElementById("landing");
+const gameViewEl = document.getElementById("gameView");
+const boardEl = document.getElementById("board");
+const statusText = document.getElementById("statusText");
+const undoBtn = document.getElementById("undoBtn");
+const resetBtn = document.getElementById("resetBtn");
+const backBtn = document.getElementById("backBtn");
+const startHumanBtn = document.getElementById("startHumanBtn");
+const startAiWhiteBtn = document.getElementById("startAiWhiteBtn");
+const startAiBlackBtn = document.getElementById("startAiBlackBtn");
+const historyList = document.getElementById("historyList");
+const bottomFiles = document.getElementById("bottomFiles");
+const leftRanks = document.getElementById("leftRanks");
+const promotionModal = document.getElementById("promotionModal");
+const promotionOptions = document.getElementById("promotionOptions");
+
+function algebraicToCoords(square) {
+  return {
+    file: square.charCodeAt(0) - 97,
+    rank: Number(square[1]) - 1,
+  };
+}
+
+function coordsToAlgebraic(file, rank) {
+  return `${FILES[file]}${rank + 1}`;
+}
+
+function internalSquareToAlgebraic(square) {
+  return `${FILES[square & 7]}${RANKS[square >> 4]}`;
+}
+
+function internalMoveToText(move) {
+  const capture = move.captured ? "x" : "-";
+  const promotion = move.promotion ? `=${move.promotion.toUpperCase()}` : "";
+  return `${internalSquareToAlgebraic(move.from)}${capture}${internalSquareToAlgebraic(move.to)}${promotion}`;
+}
+
+function buildAxes() {
+  bottomFiles.innerHTML = "";
+  leftRanks.innerHTML = "";
+
+  FILES.forEach((file) => {
+    const bottom = document.createElement("span");
+    bottom.textContent = file.toUpperCase();
+    bottomFiles.appendChild(bottom);
+  });
+
+  for (let rank = 8; rank >= 1; rank -= 1) {
+    const left = document.createElement("span");
+    left.textContent = rank;
+    leftRanks.appendChild(left);
+  }
+}
+
+function buildBoard() {
+  boardEl.innerHTML = "";
+  for (let rank = 7; rank >= 0; rank -= 1) {
+    for (let file = 0; file < 8; file += 1) {
+      const square = coordsToAlgebraic(file, rank);
+      const squareEl = document.createElement("button");
+      squareEl.type = "button";
+      squareEl.className = `square ${(file + rank) % 2 === 0 ? "light" : "dark"}`;
+      squareEl.dataset.square = square;
+      squareEl.addEventListener("click", () => onSquareClick(square));
+      boardEl.appendChild(squareEl);
+    }
+  }
+}
+
+function clearSelection() {
+  state.selected = null;
+  state.legalMoves = [];
+}
+
+function clearPromotion() {
+  state.pendingPromotion = null;
+  promotionModal.classList.add("is-hidden");
+  promotionOptions.innerHTML = "";
+}
+
+function clearWinner() {
+  state.winner = null;
+}
+
+function getAiColor() {
+  return state.mode === "ai" ? (state.humanColor === "w" ? "b" : "w") : null;
+}
+
+function isGameOver() {
+  return Boolean(state.winner);
+}
+
+function getTurnLabel() {
+  return game.turn() === "w" ? "White" : "Black";
+}
+
+function legalMovesFrom(square) {
+  return game
+    ._moves({ legal: false, square })
+    .map((move) => ({ square: internalSquareToAlgebraic(move.to), capture: Boolean(move.captured) }));
+}
+
+function isPromotionMove(from, to) {
+  const piece = game.get(from);
+  if (!piece || piece.type !== "p") {
+    return false;
+  }
+
+  const targetRank = Number(to[1]);
+  return (piece.color === "w" && targetRank === 8) || (piece.color === "b" && targetRank === 1);
+}
+
+function getPromotionColor() {
+  if (state.pendingPromotion) {
+    const pendingPiece = game.get(state.pendingPromotion.from);
+    return (pendingPiece && pendingPiece.color) || game.turn();
+  }
+
+  if (state.mode === "ai") {
+    return getAiColor() === "w" ? "w" : "b";
+  }
+
+  return game.turn();
+}
+
+function hasKing(color) {
+  return game.board().some((row) => row.some((piece) => piece && piece.type === "k" && piece.color === color));
+}
+
+function showPromotionPicker(from, to) {
+  state.pendingPromotion = { from, to };
+  promotionOptions.innerHTML = "";
+
+  const promotionPieces = ["q", "r", "b", "n"];
+  const color = getPromotionColor();
+
+  for (const pieceType of promotionPieces) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "promotion-option";
+    button.dataset.piece = pieceType;
+
+    const image = document.createElement("img");
+    image.src = PIECE_IMAGES[pieceType][color];
+    image.alt = `${color === "w" ? "White" : "Black"} ${pieceType}`;
+
+    const label = document.createElement("span");
+    label.textContent = pieceType.toUpperCase();
+
+    button.append(image, label);
+    button.addEventListener("click", () => finalizePromotion(pieceType));
+    promotionOptions.appendChild(button);
+  }
+
+  promotionModal.classList.remove("is-hidden");
+}
+
+function finalizePromotion(promotion) {
+  if (!state.pendingPromotion) {
+    return;
+  }
+
+  const { from, to } = state.pendingPromotion;
+  const move = executePseudoMove(from, to, promotion);
+  clearPromotion();
+
+  if (!move) {
+    return;
+  }
+
+  clearSelection();
+  render();
+  maybeRunAiMove();
+}
+
+function renderHistory() {
+  const history = game._history.map((entry) => entry.move);
+  historyList.innerHTML = "";
+
+  if (!history.length) {
+    const empty = document.createElement("div");
+    empty.className = "history-empty";
+    empty.textContent = "No moves yet.";
+    historyList.appendChild(empty);
+    return;
+  }
+
+  for (let index = 0; index < history.length; index += 2) {
+    const row = document.createElement("div");
+    row.className = "history-row";
+
+    const turn = document.createElement("span");
+    turn.className = "history-turn";
+    turn.textContent = `${index / 2 + 1}.`;
+
+    const whiteMove = document.createElement("span");
+    whiteMove.className = "history-move";
+    whiteMove.textContent = history[index] ? internalMoveToText(history[index]) : "";
+
+    const blackMove = document.createElement("span");
+    blackMove.className = "history-move";
+    blackMove.textContent = history[index + 1] ? internalMoveToText(history[index + 1]) : "";
+
+    row.append(turn, whiteMove, blackMove);
+    historyList.appendChild(row);
+  }
+}
+
+function updateStatus() {
+  if (!state.mode) {
+    statusText.textContent = "Choose a mode to begin";
+    return;
+  }
+
+  if (state.aiThinking) {
+    statusText.textContent = "AI is thinking...";
+    return;
+  }
+
+  if (isGameOver()) {
+    statusText.textContent = `${state.winner === "w" ? "White" : "Black"} wins.`;
+    return;
+  }
+
+  if (state.selected) {
+    statusText.textContent = `Selected ${state.selected.toUpperCase()}. Choose a legal move.`;
+    return;
+  }
+
+  statusText.textContent = `${getTurnLabel()} to move.`;
+}
+
+function renderBoard() {
+  const selected = state.selected;
+  const legalTargets = new Map(state.legalMoves.map((move) => [move.square, move.capture]));
+
+  Array.from(boardEl.children).forEach((squareEl) => {
+    const square = squareEl.dataset.square;
+    const piece = game.get(square);
+    squareEl.classList.remove("selected", "move", "capture", "white-piece", "black-piece");
+    squareEl.innerHTML = "";
+
+    if (selected === square) {
+      squareEl.classList.add("selected");
+    }
+
+    if (legalTargets.has(square)) {
+      squareEl.classList.add(legalTargets.get(square) ? "capture" : "move");
+    }
+
+    if (piece) {
+      squareEl.classList.add(piece.color === "w" ? "white-piece" : "black-piece");
+      const pieceEl = document.createElement("img");
+      pieceEl.className = "piece";
+      pieceEl.src = PIECE_IMAGES[piece.type][piece.color];
+      pieceEl.alt = `${piece.color === "w" ? "White" : "Black"} ${piece.type}`;
+      squareEl.appendChild(pieceEl);
+    }
+  });
+}
+
+function updateWinnerState() {
+  if (!hasKing("w")) {
+    state.winner = "b";
+    return;
+  }
+
+  if (!hasKing("b")) {
+    state.winner = "w";
+    return;
+  }
+
+  const moves = game._moves({ legal: false });
+  if (!moves.length) {
+    state.winner = game.turn() === "w" ? "b" : "w";
+    return;
+  }
+
+  state.winner = null;
+}
+
+function executePseudoMove(from, to, promotion) {
+  const fromSquare = typeof from === "string" ? from : internalSquareToAlgebraic(from);
+  const toSquare = typeof to === "string" ? to : internalSquareToAlgebraic(to);
+  const candidateMoves = game._moves({ legal: false, square: fromSquare });
+  const piece = game.get(fromSquare);
+  const matchedMove = candidateMoves.find((move) => {
+    const moveTo = internalSquareToAlgebraic(move.to);
+    if (moveTo !== toSquare) {
+      return false;
+    }
+
+    if (promotion && move.promotion && move.promotion !== promotion) {
+      return false;
+    }
+
+    if (promotion && !move.promotion) {
+      return false;
+    }
+
+    return true;
+  });
+
+  if (!matchedMove) {
+    return null;
+  }
+
+  if (promotion && piece && piece.type === "p") {
+    matchedMove.promotion = promotion;
+  }
+
+  game._makeMove(matchedMove);
+  updateWinnerState();
+  return matchedMove;
+}
+
+function render() {
+  renderBoard();
+  renderHistory();
+  updateStatus();
+}
+
+function showGame(mode) {
+  state.mode = mode;
+  state.humanColor = "w";
+  clearPromotion();
+  clearWinner();
+  clearSelection();
+  landingEl.classList.add("is-hidden");
+  gameViewEl.classList.remove("is-hidden");
+  game.reset();
+  render();
+  maybeRunAiMove();
+}
+
+function showAiGame(humanColor) {
+  state.mode = "ai";
+  state.humanColor = humanColor;
+  clearPromotion();
+  clearWinner();
+  clearSelection();
+  landingEl.classList.add("is-hidden");
+  gameViewEl.classList.remove("is-hidden");
+  game.reset();
+  render();
+  maybeRunAiMove();
+}
+
+function showLanding() {
+  state.mode = null;
+  state.humanColor = "w";
+  state.aiThinking = false;
+  clearPromotion();
+  clearWinner();
+  clearSelection();
+  game.reset();
+  gameViewEl.classList.add("is-hidden");
+  landingEl.classList.remove("is-hidden");
+  render();
+}
+
+function attemptMove(from, to) {
+  if (isPromotionMove(from, to)) {
+    showPromotionPicker(from, to);
+    return true;
+  }
+
+  const move = executePseudoMove(from, to);
+  if (!move) {
+    return false;
+  }
+
+  clearSelection();
+  render();
+  maybeRunAiMove();
+  return true;
+}
+
+function onSquareClick(square) {
+  if (!state.mode || state.aiThinking || isGameOver()) {
+    return;
+  }
+
+  const piece = game.get(square);
+
+  if (state.selected === square) {
+    clearSelection();
+    render();
+    return;
+  }
+
+  if (state.selected && state.legalMoves.some((move) => move.square === square)) {
+    attemptMove(state.selected, square);
+    return;
+  }
+
+  if (piece && piece.color === game.turn() && (state.mode === "human" || piece.color === state.humanColor)) {
+    state.selected = square;
+    state.legalMoves = legalMovesFrom(square);
+    render();
+  }
+}
+
+function undoTwoPlies() {
+  if (state.aiThinking) {
+    return;
+  }
+
+  clearPromotion();
+  clearWinner();
+  game.undo();
+  game.undo();
+  clearSelection();
+  render();
+}
+
+function restartGame() {
+  clearPromotion();
+  clearWinner();
+  game.reset();
+  state.aiThinking = false;
+  clearSelection();
+  render();
+  maybeRunAiMove();
+}
+
+function evaluateBoard() {
+  const pieceValues = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
+  const pieceSquareTables = {
+    p: [
+      0, 0, 0, 0, 0, 0, 0, 0,
+      50, 50, 50, 50, 50, 50, 50, 50,
+      10, 10, 20, 30, 30, 20, 10, 10,
+      5, 5, 10, 25, 25, 10, 5, 5,
+      0, 0, 0, 20, 20, 0, 0, 0,
+      5, -5, -10, 0, 0, -10, -5, 5,
+      5, 10, 10, -20, -20, 10, 10, 5,
+      0, 0, 0, 0, 0, 0, 0, 0,
+    ],
+    n: [
+      -50, -40, -30, -30, -30, -30, -40, -50,
+      -40, -20, 0, 0, 0, 0, -20, -40,
+      -30, 0, 10, 15, 15, 10, 0, -30,
+      -30, 5, 15, 20, 20, 15, 5, -30,
+      -30, 0, 15, 20, 20, 15, 0, -30,
+      -30, 5, 10, 15, 15, 10, 5, -30,
+      -40, -20, 0, 5, 5, 0, -20, -40,
+      -50, -40, -30, -30, -30, -30, -40, -50,
+    ],
+    b: [
+      -20, -10, -10, -10, -10, -10, -10, -20,
+      -10, 0, 0, 0, 0, 0, 0, -10,
+      -10, 0, 5, 10, 10, 5, 0, -10,
+      -10, 5, 5, 10, 10, 5, 5, -10,
+      -10, 0, 10, 10, 10, 10, 0, -10,
+      -10, 10, 10, 10, 10, 10, 10, -10,
+      -10, 5, 0, 0, 0, 0, 5, -10,
+      -20, -10, -10, -10, -10, -10, -10, -20,
+    ],
+    r: [
+      0, 0, 0, 5, 5, 0, 0, 0,
+      -5, 0, 0, 0, 0, 0, 0, -5,
+      -5, 0, 0, 0, 0, 0, 0, -5,
+      -5, 0, 0, 0, 0, 0, 0, -5,
+      -5, 0, 0, 0, 0, 0, 0, -5,
+      -5, 0, 0, 0, 0, 0, 0, -5,
+      5, 10, 10, 10, 10, 10, 10, 5,
+      0, 0, 0, 0, 0, 0, 0, 0,
+    ],
+    q: [
+      -20, -10, -10, -5, -5, -10, -10, -20,
+      -10, 0, 0, 0, 0, 0, 0, -10,
+      -10, 0, 5, 5, 5, 5, 0, -10,
+      -5, 0, 5, 5, 5, 5, 0, -5,
+      0, 0, 5, 5, 5, 5, 0, -5,
+      -10, 5, 5, 5, 5, 5, 0, -10,
+      -10, 0, 5, 0, 0, 0, 0, -10,
+      -20, -10, -10, -5, -5, -10, -10, -20,
+    ],
+    k: [
+      -30, -40, -40, -50, -50, -40, -40, -30,
+      -30, -40, -40, -50, -50, -40, -40, -30,
+      -30, -40, -40, -50, -50, -40, -40, -30,
+      -30, -40, -40, -50, -50, -40, -40, -30,
+      -20, -30, -30, -40, -40, -30, -30, -20,
+      -10, -20, -20, -20, -20, -20, -20, -10,
+      20, 20, 0, 0, 0, 0, 20, 20,
+      20, 30, 10, 0, 0, 10, 30, 20,
+    ],
+  };
+
+  let score = 0;
+  for (let index = 0; index < game.board().length; index += 1) {
+    const row = game.board()[index];
+    for (let file = 0; file < row.length; file += 1) {
+      const piece = row[file];
+      if (!piece) {
+        continue;
+      }
+
+      const boardIndex = index * 8 + file;
+      const tableIndex = 63 - boardIndex;
+      const table = pieceSquareTables[piece.type];
+      const tableBonus = table ? table[tableIndex] : 0;
+      const pieceScore = pieceValues[piece.type] + tableBonus;
+      score += piece.color === "b" ? pieceScore : -pieceScore;
+    }
+  }
+
+  return score;
+}
+
+function pickBestMove() {
+  const aiColor = getAiColor();
+  const result = searchBestMove(AI_SEARCH_DEPTH, aiColor);
+  if (!result) {
+    return null;
+  }
+
+  return result;
+}
+
+function moveSortScore(move) {
+  const captureWeight = move.captured ? (move.captured === "k" ? 10000 : 1000) + (move.captured ? 100 : 0) : 0;
+  const promotionWeight = move.promotion ? 500 : 0;
+  return captureWeight + promotionWeight;
+}
+
+function searchBestMove(depth, aiColor) {
+  const maximizing = game.turn() === aiColor;
+  let bestScore = maximizing ? -Infinity : Infinity;
+  let bestMove = null;
+  const moves = game._moves({ legal: false }).slice().sort((a, b) => moveSortScore(b) - moveSortScore(a));
+
+  if (!moves.length) {
+    return null;
+  }
+
+  for (const move of moves) {
+    game._makeMove(move);
+    const score = search(depth - 1, -Infinity, Infinity, aiColor);
+    game._undoMove();
+
+    if (maximizing ? score > bestScore : score < bestScore) {
+      bestScore = score;
+      bestMove = move;
+    }
+  }
+
+  if (!bestMove) {
+    return null;
+  }
+
+  return {
+    from: internalSquareToAlgebraic(bestMove.from),
+    to: internalSquareToAlgebraic(bestMove.to),
+    promotion: bestMove.promotion || (isPromotionMove(internalSquareToAlgebraic(bestMove.from), internalSquareToAlgebraic(bestMove.to)) ? "q" : undefined),
+  };
+}
+
+function search(depth, alpha, beta, aiColor) {
+  if (game._kings.w === -1) {
+    return aiColor === "b" ? 100000 : -100000;
+  }
+
+  if (game._kings.b === -1) {
+    return aiColor === "w" ? 100000 : -100000;
+  }
+
+  const moves = game._moves({ legal: false });
+  if (!moves.length) {
+    return game.turn() === aiColor ? -100000 : 100000;
+  }
+
+  if (depth <= 0) {
+    const base = evaluateBoard();
+    return aiColor === "b" ? base : -base;
+  }
+
+  const maximizing = game.turn() === aiColor;
+  let best = maximizing ? -Infinity : Infinity;
+  const orderedMoves = moves.slice().sort((a, b) => moveSortScore(b) - moveSortScore(a));
+
+  for (const move of orderedMoves) {
+    game._makeMove(move);
+    const score = search(depth - 1, alpha, beta, aiColor);
+    game._undoMove();
+
+    if (maximizing) {
+      if (score > best) {
+        best = score;
+      }
+      if (score > alpha) {
+        alpha = score;
+      }
+      if (beta <= alpha) {
+        break;
+      }
+    } else {
+      if (score < best) {
+        best = score;
+      }
+      if (score < beta) {
+        beta = score;
+      }
+      if (beta <= alpha) {
+        break;
+      }
+    }
+  }
+
+  return best;
+}
+
+function maybeRunAiMove() {
+  const aiColor = getAiColor();
+  if (state.mode !== "ai" || state.aiThinking || isGameOver() || game.turn() !== aiColor) {
+    return;
+  }
+
+  state.aiThinking = true;
+  render();
+
+  window.setTimeout(() => {
+    if (!isGameOver() && game.turn() === aiColor) {
+      const move = pickBestMove();
+      if (move) {
+        executePseudoMove(move.from, move.to, move.promotion || (isPromotionMove(move.from, move.to) ? "q" : undefined));
+      }
+    }
+
+    state.aiThinking = false;
+    render();
+  }, 320);
+}
+
+buildAxes();
+buildBoard();
+render();
+
+startHumanBtn.addEventListener("click", () => showGame("human"));
+startAiWhiteBtn.addEventListener("click", () => showAiGame("w"));
+startAiBlackBtn.addEventListener("click", () => showAiGame("b"));
+backBtn.addEventListener("click", showLanding);
+undoBtn.addEventListener("click", undoTwoPlies);
+resetBtn.addEventListener("click", restartGame);
+promotionModal.addEventListener("click", (event) => {
+  if (event.target === promotionModal || event.target.classList.contains("promotion-modal__backdrop")) {
+    clearPromotion();
+  }
+});

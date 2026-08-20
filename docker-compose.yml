@@ -1,0 +1,9 @@
+services:
+  chess-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chess_web
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:8080:80"

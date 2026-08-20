@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chess Arena</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" defer src="./app.js"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel panel--landing" id="landing">
+        <div class="panel__header panel__header--landing">
+          <h1 class="page-title">
+            <img class="page-title__logo" src="./assets/chess-logo.svg" alt="Chess logo" />
+            <span>Chess</span>
+          </h1>
+        </div>
+
+        <div class="mode-grid">
+          <button id="startHumanBtn" class="mode-card" type="button">Local PvP</button>
+
+          <div class="mode-card mode-card--pve">
+            <div class="mode-card__label">PvE</div>
+            <div class="mode-card__choices">
+              <button id="startAiWhiteBtn" class="mode-chip" type="button">White</button>
+              <button id="startAiBlackBtn" class="mode-chip" type="button">Black</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel panel--game is-hidden" id="gameView">
+        <div class="panel__header panel__header--game">
+          <div class="page-title-row">
+            <h1 class="page-title">
+              <img class="page-title__logo" src="./assets/chess-logo.svg" alt="Chess logo" />
+              <span>Chess</span>
+            </h1>
+            <button id="backBtn" class="toolbar__btn toolbar__btn--inline" type="button">Back to mode select</button>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <button id="resetBtn" class="toolbar__btn" type="button">Restart game</button>
+          <button id="undoBtn" class="toolbar__btn" type="button">Undo move</button>
+        </div>
+
+        <div class="turn-strip">
+          <span id="statusText">Choose a piece to see legal moves</span>
+        </div>
+
+        <div class="game-layout">
+          <div class="board-wrap">
+            <div class="board-body">
+              <div class="board-axes board-axes--left" id="leftRanks"></div>
+              <div class="board" id="board" aria-label="Chess board"></div>
+            </div>
+            <div class="board-axes board-axes--bottom" id="bottomFiles"></div>
+          </div>
+
+          <aside class="sidebar">
+            <div class="card">
+              <h2>Move History</h2>
+              <div class="history-list" id="historyList"></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <div class="promotion-modal is-hidden" id="promotionModal" role="dialog" aria-modal="true" aria-labelledby="promotionTitle">
+        <div class="promotion-modal__backdrop"></div>
+        <div class="promotion-modal__panel">
+          <h2 id="promotionTitle">Choose promotion</h2>
+          <div class="promotion-options" id="promotionOptions"></div>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>
