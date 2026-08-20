@@ -182,9 +182,10 @@ function internalSquareToAlgebraic(square) {
 }
 
 function internalMoveToText(move) {
+  const piece = (move.piece || "?").toUpperCase();
   const capture = move.captured ? "x" : "-";
   const promotion = move.promotion ? `=${move.promotion.toUpperCase()}` : "";
-  return `${internalSquareToAlgebraic(move.from)}${capture}${internalSquareToAlgebraic(move.to)}${promotion}`;
+  return `${piece} ${internalSquareToAlgebraic(move.from)}${capture}${internalSquareToAlgebraic(move.to)}${promotion}`;
 }
 
 function buildAxes() {
