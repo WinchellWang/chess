@@ -46,6 +46,7 @@ const promotionModal = document.getElementById("promotionModal");
 const promotionOptions = document.getElementById("promotionOptions");
 const aboutContent = document.getElementById("aboutContent");
 const copyrightYear = document.getElementById("copyrightYear");
+const siteFooter = document.querySelector(".site-footer");
 
 function escapeHtml(value) {
   return value
@@ -490,6 +491,7 @@ function showGame(mode) {
   clearSelection();
   landingEl.classList.add("is-hidden");
   gameViewEl.classList.remove("is-hidden");
+  siteFooter.classList.add("is-hidden");
   game.reset();
   render();
   maybeRunAiMove();
@@ -503,6 +505,7 @@ function showAiGame(humanColor) {
   clearSelection();
   landingEl.classList.add("is-hidden");
   gameViewEl.classList.remove("is-hidden");
+  siteFooter.classList.add("is-hidden");
   game.reset();
   render();
   maybeRunAiMove();
@@ -518,6 +521,7 @@ function showLanding() {
   game.reset();
   gameViewEl.classList.add("is-hidden");
   landingEl.classList.remove("is-hidden");
+  siteFooter.classList.remove("is-hidden");
   render();
 }
 
