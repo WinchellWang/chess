@@ -44,6 +44,80 @@ const bottomFiles = document.getElementById("bottomFiles");
 const leftRanks = document.getElementById("leftRanks");
 const promotionModal = document.getElementById("promotionModal");
 const promotionOptions = document.getElementById("promotionOptions");
+const aboutContent = document.getElementById("aboutContent");
+const copyrightYear = document.getElementById("copyrightYear");
+
+function escapeHtml(value) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function renderInlineMarkdown(value) {
+  return escapeHtml(value)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\[([^\]]+)]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+}
+
+function renderMarkdown(markdown) {
+  const html = [];
+  let listOpen = false;
+
+  const closeList = () => {
+    if (listOpen) {
+      html.push("</ul>");
+      listOpen = false;
+    }
+  };
+
+  for (const sourceLine of markdown.split(/\r?\n/)) {
+    const line = sourceLine.trim();
+    if (!line) {
+      closeList();
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      closeList();
+      const level = Math.min(heading[1].length + 1, 4);
+      html.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+      continue;
+    }
+
+    const listItem = line.match(/^[-*]\s+(.+)$/);
+    if (listItem) {
+      if (!listOpen) {
+        html.push("<ul>");
+        listOpen = true;
+      }
+      html.push(`<li>${renderInlineMarkdown(listItem[1])}</li>`);
+      continue;
+    }
+
+    closeList();
+    html.push(`<p>${renderInlineMarkdown(line)}</p>`);
+  }
+
+  closeList();
+  return html.join("");
+}
+
+async function loadAboutContent() {
+  try {
+    const response = await fetch("./about.md", { cache: "no-cache" });
+    if (!response.ok) {
+      throw new Error(`Unable to load about.md (${response.status})`);
+    }
+    aboutContent.innerHTML = renderMarkdown(await response.text());
+  } catch (error) {
+    console.error(error);
+    aboutContent.innerHTML = '<p class="about-error">About information is currently unavailable.</p>';
+  }
+}
 
 function unlockChessAudio() {
   if (!AudioContextClass) {
@@ -253,9 +327,13 @@ function finalizePromotion(promotion) {
 function renderHistory() {
   const history = game._history.map((entry) => entry.move);
   const previousMoveCount = Number(historyList.dataset.moveCount || 0);
-  const hasNewMove = history.length > previousMoveCount;
+  const historyChanged = history.length !== previousMoveCount;
   historyList.innerHTML = "";
   historyList.dataset.moveCount = String(history.length);
+
+  if (historyChanged) {
+    historyList.scrollTop = 0;
+  }
 
   if (!history.length) {
     const empty = document.createElement("div");
@@ -286,9 +364,6 @@ function renderHistory() {
     historyList.appendChild(row);
   }
 
-  if (hasNewMove) {
-    historyList.scrollTop = 0;
-  }
 }
 
 function updateStatus() {
@@ -404,6 +479,7 @@ function render() {
   renderBoard();
   renderHistory();
   updateStatus();
+  undoBtn.disabled = state.aiThinking || game._history.length < 2;
 }
 
 function showGame(mode) {
@@ -488,7 +564,7 @@ function onSquareClick(square) {
 }
 
 function undoTwoPlies() {
-  if (state.aiThinking) {
+  if (state.aiThinking || game._history.length < 2) {
     return;
   }
 
@@ -780,6 +856,8 @@ function maybeRunAiMove() {
 
 buildAxes();
 buildBoard();
+copyrightYear.textContent = String(new Date().getFullYear());
+loadAboutContent();
 render();
 
 startHumanBtn.addEventListener("click", () => showGame("human"));

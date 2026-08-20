@@ -215,6 +215,49 @@ h1 {
   border-color: rgba(167, 227, 143, 0.36);
 }
 
+.about-card {
+  margin-top: 8px;
+  padding: clamp(22px, 3vw, 34px);
+}
+
+.about-card h2 {
+  margin-bottom: 18px;
+  font-size: clamp(1.55rem, 2.2vw, 2rem);
+}
+
+.markdown-content {
+  color: #cbd5cf;
+  line-height: 1.7;
+}
+
+.markdown-content h3,
+.markdown-content h4 {
+  margin: 24px 0 8px;
+  color: var(--text);
+}
+
+.markdown-content p,
+.markdown-content ul {
+  margin-bottom: 14px;
+}
+
+.markdown-content ul {
+  padding-left: 1.35rem;
+}
+
+.markdown-content li + li {
+  margin-top: 6px;
+}
+
+.markdown-content a {
+  color: var(--accent);
+}
+
+.about-loading,
+.about-error {
+  color: var(--muted);
+}
+
 .game-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
@@ -451,6 +494,12 @@ h1 {
   overscroll-behavior: contain;
 }
 
+.toolbar__btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .history-empty {
   color: var(--muted);
   padding: 10px 0;
@@ -532,6 +581,42 @@ h1 {
 
 .history-move {
   font-weight: 600;
+}
+
+.site-footer {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 30px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  color: #b8c3bd;
+  text-align: center;
+}
+
+.site-footer p {
+  margin: 0;
+}
+
+.github-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 11px 20px;
+  border-radius: 8px;
+  background: #1d232a;
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.github-link:hover {
+  background: #252d36;
+  transform: translateY(-1px);
 }
 
 @media (max-width: 1080px) {
