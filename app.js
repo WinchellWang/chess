@@ -214,7 +214,8 @@ function renderHistory() {
     return;
   }
 
-  for (let index = 0; index < history.length; index += 2) {
+  const latestTurnIndex = Math.floor((history.length - 1) / 2) * 2;
+  for (let index = latestTurnIndex; index >= 0; index -= 2) {
     const row = document.createElement("div");
     row.className = "history-row";
 

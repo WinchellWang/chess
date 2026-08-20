@@ -164,17 +164,28 @@ h1 {
 }
 
 .mode-card--pve {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
   gap: 14px;
+  padding: 18px 22px;
 }
 
 .mode-card__label {
+  width: 100%;
+  margin-top: 2px;
+  text-align: center;
   font-size: clamp(1.2rem, 1.8vw, 1.6rem);
   font-weight: 700;
 }
 
 .mode-card__choices {
-  display: flex;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  margin-top: auto;
 }
 
 .mode-chip {
@@ -182,10 +193,14 @@ h1 {
   border: 1px solid rgba(167, 227, 143, 0.24);
   background: rgba(15, 19, 23, 0.92);
   color: var(--text);
-  border-radius: 999px;
-  padding: 10px 16px;
+  min-width: 0;
+  min-height: 70px;
+  border-radius: 16px;
+  padding: 14px 12px;
   font: inherit;
-  font-size: 0.92rem;
+  font-size: clamp(0.95rem, 1.45vw, 1.15rem);
+  font-weight: 700;
+  line-height: 1.2;
   cursor: pointer;
   transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
 }
@@ -428,6 +443,12 @@ h1 {
   display: grid;
   gap: 10px;
   min-height: 120px;
+  /* 12 rows at 44px plus the 11 gaps between them. */
+  max-height: 638px;
+  overflow-y: auto;
+  align-content: start;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }
 
 .history-empty {
@@ -438,6 +459,8 @@ h1 {
 .history-row {
   display: grid;
   grid-template-columns: 40px 1fr 1fr;
+  min-height: 44px;
+  align-items: center;
   gap: 10px;
   padding: 10px 12px;
   border-radius: 14px;

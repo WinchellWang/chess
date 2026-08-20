@@ -10,7 +10,7 @@
   "theme_color": "#050608",
   "icons": [
     {
-      "src": "./assets/chess-logo.svg",
+      "src": "./assets/chess-pwa-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
