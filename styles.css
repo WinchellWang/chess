@@ -260,7 +260,7 @@ h1 {
 
 .game-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 380px);
   gap: 12px;
   align-items: start;
 }
@@ -581,6 +581,16 @@ h1 {
 
 .history-move {
   font-weight: 600;
+}
+
+@media (min-width: 1081px) {
+  .history-row {
+    grid-template-columns: 44px minmax(112px, 1fr) minmax(112px, 1fr);
+  }
+
+  .history-move {
+    white-space: nowrap;
+  }
 }
 
 .site-footer {
