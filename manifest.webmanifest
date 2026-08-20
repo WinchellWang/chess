@@ -1,0 +1,19 @@
+{
+  "id": "./",
+  "name": "Chess Arena",
+  "short_name": "Chess",
+  "description": "Play chess locally against another player or the computer.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#050608",
+  "theme_color": "#050608",
+  "icons": [
+    {
+      "src": "./assets/chess-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
