@@ -234,8 +234,10 @@ h1 {
 }
 
 .toolbar__btn--inline {
-  padding: 10px 14px;
-  font-size: clamp(1.1rem, 1.6vw, 1.45rem);
+  min-height: 1.05em;
+  padding: 0.24em 0.55em;
+  font-size: clamp(2.1rem, 4vw, 3.45rem);
+  line-height: 1;
   font-weight: 700;
 }
 
@@ -281,8 +283,9 @@ h1 {
 
 .board-axes--bottom {
   grid-template-columns: repeat(8, 1fr);
-  width: calc(100% - var(--board-gutter));
-  margin-left: var(--board-gutter);
+  /* Match the board's inner grid (inside its 1px border) exactly. */
+  width: calc(100% - var(--board-gutter) - 2px);
+  margin-left: calc(var(--board-gutter) + 1px);
 }
 
 .board-axes--left {
@@ -523,15 +526,38 @@ h1 {
   .board {
     max-width: 680px;
   }
+
+  .board-wrap {
+    width: min(100%, calc(680px + var(--board-gutter)));
+  }
+}
+
+@media (max-width: 1080px) and (orientation: portrait) {
+  /* Keep the board itself aligned with the sidebar card. The rank labels
+     occupy a gutter that extends to the left of both content blocks. */
+  .board-wrap {
+    width: calc(100% + var(--board-gutter));
+    max-width: none;
+    margin-left: calc(-1 * var(--board-gutter));
+    margin-right: 0;
+  }
+
+  .board {
+    max-width: none;
+  }
 }
 
 @media (max-width: 760px) {
+  :root {
+    --board-gutter: clamp(14px, 4vw, 18px);
+  }
+
   .shell {
-    padding: 16px;
+    padding: 12px;
   }
 
   .panel {
-    padding: 18px;
+    padding: 0;
   }
 
   .panel__header {
@@ -548,12 +574,12 @@ h1 {
 
   .board-body {
     gap: 0;
-    grid-template-columns: clamp(14px, 1.3vw, 18px) minmax(0, 1fr);
+    grid-template-columns: var(--board-gutter) minmax(0, 1fr);
   }
 
   .board-axes--bottom {
-    width: calc(100% - var(--board-gutter));
-    margin-left: var(--board-gutter);
+    width: calc(100% - var(--board-gutter) - 2px);
+    margin-left: calc(var(--board-gutter) + 1px);
   }
 
   .board-axes {
