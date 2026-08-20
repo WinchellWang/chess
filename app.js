@@ -2,7 +2,11 @@ import { Chess } from "./vendor/chess.js";
 
 const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const RANKS = "87654321";
-const AI_SEARCH_DEPTH = 4;
+const AI_SEARCH_MAX_DEPTH = 3;
+const AI_SEARCH_TIME_MS = 1500;
+const AI_MOVE_DELAY_MS = 320;
+const AI_NEAR_BEST_MARGIN = 90;
+const AI_SEARCH_TIMEOUT = Symbol("AI_SEARCH_TIMEOUT");
 const PIECE_IMAGES = {
   p: { w: "./assets/pieces/white_pawn.svg", b: "./assets/pieces/black_pawn.svg" },
   r: { w: "./assets/pieces/white_rook.svg", b: "./assets/pieces/black_rook.svg" },
@@ -537,12 +541,32 @@ function evaluateBoard() {
 
 function pickBestMove() {
   const aiColor = getAiColor();
-  const result = searchBestMove(AI_SEARCH_DEPTH, aiColor);
-  if (!result) {
+  const deadline = performance.now() + AI_SEARCH_TIME_MS;
+  const fallbackMoves = getOrderedMoves();
+  if (!fallbackMoves.length) {
     return null;
   }
 
-  return result;
+  let completedResult = moveToResult(fallbackMoves[0]);
+
+  // Iterative deepening always leaves us with a move from the last fully
+  // completed depth. An interrupted depth is discarded rather than allowing
+  // a partially searched root move to bias the result.
+  for (let depth = 1; depth <= AI_SEARCH_MAX_DEPTH; depth += 1) {
+    try {
+      const candidates = searchBestMoves(depth, aiColor, deadline);
+      if (candidates.length) {
+        completedResult = chooseHumanLikeMove(candidates);
+      }
+    } catch (error) {
+      if (error !== AI_SEARCH_TIMEOUT) {
+        throw error;
+      }
+      break;
+    }
+  }
+
+  return completedResult;
 }
 
 function moveSortScore(move) {
@@ -551,39 +575,72 @@ function moveSortScore(move) {
   return captureWeight + promotionWeight;
 }
 
-function searchBestMove(depth, aiColor) {
-  const maximizing = game.turn() === aiColor;
-  let bestScore = maximizing ? -Infinity : Infinity;
-  let bestMove = null;
-  const moves = game._moves({ legal: false }).slice().sort((a, b) => moveSortScore(b) - moveSortScore(a));
+function getOrderedMoves() {
+  return game._moves({ legal: false }).slice().sort((a, b) => moveSortScore(b) - moveSortScore(a));
+}
 
-  if (!moves.length) {
-    return null;
-  }
-
-  for (const move of moves) {
-    game._makeMove(move);
-    const score = search(depth - 1, -Infinity, Infinity, aiColor);
-    game._undoMove();
-
-    if (maximizing ? score > bestScore : score < bestScore) {
-      bestScore = score;
-      bestMove = move;
-    }
-  }
-
-  if (!bestMove) {
-    return null;
-  }
-
+function moveToResult(move) {
+  const from = internalSquareToAlgebraic(move.from);
+  const to = internalSquareToAlgebraic(move.to);
   return {
-    from: internalSquareToAlgebraic(bestMove.from),
-    to: internalSquareToAlgebraic(bestMove.to),
-    promotion: bestMove.promotion || (isPromotionMove(internalSquareToAlgebraic(bestMove.from), internalSquareToAlgebraic(bestMove.to)) ? "q" : undefined),
+    from,
+    to,
+    promotion: move.promotion || (isPromotionMove(from, to) ? "q" : undefined),
   };
 }
 
-function search(depth, alpha, beta, aiColor) {
+function checkSearchDeadline(deadline) {
+  if (performance.now() >= deadline) {
+    throw AI_SEARCH_TIMEOUT;
+  }
+}
+
+function chooseHumanLikeMove(candidates) {
+  const bestScore = candidates[0].score;
+  const nearBest = candidates
+    .filter((candidate) => bestScore - candidate.score <= AI_NEAR_BEST_MARGIN)
+    .slice(0, 3);
+
+  // Usually play the best move, while occasionally choosing another move
+  // whose evaluation is close. This avoids unrealistically perfect play at
+  // shallow depth and targets roughly club-beginner strength (~1000 Elo).
+  let selectedIndex = 0;
+  const roll = Math.random();
+  if (nearBest.length >= 3 && roll > 0.92) {
+    selectedIndex = 2;
+  } else if (nearBest.length >= 2 && roll > 0.78) {
+    selectedIndex = 1;
+  }
+
+  return moveToResult(nearBest[selectedIndex].move);
+}
+
+function searchBestMoves(depth, aiColor, deadline) {
+  checkSearchDeadline(deadline);
+  const moves = getOrderedMoves();
+  const candidates = [];
+
+  if (!moves.length) {
+    return candidates;
+  }
+
+  for (const move of moves) {
+    checkSearchDeadline(deadline);
+    game._makeMove(move);
+    try {
+      const score = search(depth - 1, -Infinity, Infinity, aiColor, deadline);
+      candidates.push({ move, score });
+    } finally {
+      game._undoMove();
+    }
+  }
+
+  return candidates.sort((a, b) => b.score - a.score);
+}
+
+function search(depth, alpha, beta, aiColor, deadline) {
+  checkSearchDeadline(deadline);
+
   if (game._kings.w === -1) {
     return aiColor === "b" ? 100000 : -100000;
   }
@@ -592,14 +649,14 @@ function search(depth, alpha, beta, aiColor) {
     return aiColor === "w" ? 100000 : -100000;
   }
 
-  const moves = game._moves({ legal: false });
-  if (!moves.length) {
-    return game.turn() === aiColor ? -100000 : 100000;
-  }
-
   if (depth <= 0) {
     const base = evaluateBoard();
     return aiColor === "b" ? base : -base;
+  }
+
+  const moves = game._moves({ legal: false });
+  if (!moves.length) {
+    return game.turn() === aiColor ? -100000 : 100000;
   }
 
   const maximizing = game.turn() === aiColor;
@@ -607,9 +664,14 @@ function search(depth, alpha, beta, aiColor) {
   const orderedMoves = moves.slice().sort((a, b) => moveSortScore(b) - moveSortScore(a));
 
   for (const move of orderedMoves) {
+    checkSearchDeadline(deadline);
     game._makeMove(move);
-    const score = search(depth - 1, alpha, beta, aiColor);
-    game._undoMove();
+    let score;
+    try {
+      score = search(depth - 1, alpha, beta, aiColor, deadline);
+    } finally {
+      game._undoMove();
+    }
 
     if (maximizing) {
       if (score > best) {
@@ -656,7 +718,7 @@ function maybeRunAiMove() {
 
     state.aiThinking = false;
     render();
-  }, 320);
+  }, AI_MOVE_DELAY_MS);
 }
 
 buildAxes();
