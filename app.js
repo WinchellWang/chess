@@ -204,7 +204,10 @@ function finalizePromotion(promotion) {
 
 function renderHistory() {
   const history = game._history.map((entry) => entry.move);
+  const previousMoveCount = Number(historyList.dataset.moveCount || 0);
+  const hasNewMove = history.length > previousMoveCount;
   historyList.innerHTML = "";
+  historyList.dataset.moveCount = String(history.length);
 
   if (!history.length) {
     const empty = document.createElement("div");
@@ -233,6 +236,10 @@ function renderHistory() {
 
     row.append(turn, whiteMove, blackMove);
     historyList.appendChild(row);
+  }
+
+  if (hasNewMove) {
+    historyList.scrollTop = 0;
   }
 }
 
