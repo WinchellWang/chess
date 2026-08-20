@@ -193,7 +193,7 @@ function buildAxes() {
 
   FILES.forEach((file) => {
     const bottom = document.createElement("span");
-    bottom.textContent = file.toUpperCase();
+    bottom.textContent = file;
     bottomFiles.appendChild(bottom);
   });
 
