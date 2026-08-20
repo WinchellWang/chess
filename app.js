@@ -7,6 +7,8 @@ const AI_SEARCH_TIME_MS = 1500;
 const AI_MOVE_DELAY_MS = 320;
 const AI_NEAR_BEST_MARGIN = 90;
 const AI_SEARCH_TIMEOUT = Symbol("AI_SEARCH_TIMEOUT");
+const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+let audioContext = null;
 const PIECE_IMAGES = {
   p: { w: "./assets/pieces/white_pawn.svg", b: "./assets/pieces/black_pawn.svg" },
   r: { w: "./assets/pieces/white_rook.svg", b: "./assets/pieces/black_rook.svg" },
@@ -42,6 +44,52 @@ const bottomFiles = document.getElementById("bottomFiles");
 const leftRanks = document.getElementById("leftRanks");
 const promotionModal = document.getElementById("promotionModal");
 const promotionOptions = document.getElementById("promotionOptions");
+
+function unlockChessAudio() {
+  if (!AudioContextClass) {
+    return;
+  }
+
+  audioContext ||= new AudioContextClass();
+  if (audioContext.state === "suspended") {
+    audioContext.resume().catch(() => {});
+  }
+}
+
+function playWoodKnock(startTime, frequency, volume, duration) {
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  const filter = audioContext.createBiquadFilter();
+
+  oscillator.type = "triangle";
+  oscillator.frequency.setValueAtTime(frequency, startTime);
+  oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.58, startTime + duration);
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(1800, startTime);
+  filter.Q.value = 0.7;
+  gain.gain.setValueAtTime(0.0001, startTime);
+  gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.004);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+  oscillator.connect(filter).connect(gain).connect(audioContext.destination);
+  oscillator.start(startTime);
+  oscillator.stop(startTime + duration + 0.01);
+}
+
+function playMoveSound(isCapture) {
+  unlockChessAudio();
+  if (!audioContext || audioContext.state !== "running") {
+    return;
+  }
+
+  const now = audioContext.currentTime;
+  if (isCapture) {
+    playWoodKnock(now, 185, 0.19, 0.095);
+    playWoodKnock(now + 0.045, 125, 0.15, 0.13);
+  } else {
+    playWoodKnock(now, 240, 0.14, 0.085);
+  }
+}
 
 function algebraicToCoords(square) {
   return {
@@ -347,6 +395,7 @@ function executePseudoMove(from, to, promotion) {
   }
 
   game._makeMove(matchedMove);
+  playMoveSound(Boolean(matchedMove.captured));
   updateWinnerState();
   return matchedMove;
 }
@@ -744,3 +793,4 @@ promotionModal.addEventListener("click", (event) => {
     clearPromotion();
   }
 });
+document.addEventListener("pointerdown", unlockChessAudio, { once: true });
