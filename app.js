@@ -13,6 +13,11 @@ const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 let audioContext = null;
 let audioOutput = null;
 let audioUnlockPromise = null;
+let mediaAudioUnlocked = false;
+let mediaAudioUnlockPromise = null;
+const isAppleDevice = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent)
+  || (navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.userAgent));
+const mediaAudio = typeof Audio === "function" ? new Audio() : null;
 const PIECE_IMAGES = {
   p: { w: "./assets/pieces/white_pawn.svg", b: "./assets/pieces/black_pawn.svg" },
   r: { w: "./assets/pieces/white_rook.svg", b: "./assets/pieces/black_rook.svg" },
@@ -125,6 +130,108 @@ async function loadAboutContent() {
   }
 }
 
+function createChessSoundUrl(isCapture) {
+  const sampleRate = 22050;
+  const duration = isCapture ? 0.19 : 0.12;
+  const sampleCount = Math.floor(sampleRate * duration);
+  const buffer = new ArrayBuffer(44 + sampleCount * 2);
+  const view = new DataView(buffer);
+  const writeText = (offset, text) => {
+    for (let index = 0; index < text.length; index += 1) {
+      view.setUint8(offset + index, text.charCodeAt(index));
+    }
+  };
+
+  writeText(0, "RIFF");
+  view.setUint32(4, 36 + sampleCount * 2, true);
+  writeText(8, "WAVE");
+  writeText(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeText(36, "data");
+  view.setUint32(40, sampleCount * 2, true);
+
+  let noiseSeed = isCapture ? 1979 : 811;
+  for (let index = 0; index < sampleCount; index += 1) {
+    const time = index / sampleRate;
+    noiseSeed = (noiseSeed * 16807) % 2147483647;
+    const noise = noiseSeed / 1073741823.5 - 1;
+    const firstHit = Math.exp(-time * (isCapture ? 24 : 34));
+    const secondTime = Math.max(0, time - (isCapture ? 0.052 : 0.025));
+    const secondHit = time >= (isCapture ? 0.052 : 0.025) ? Math.exp(-secondTime * 32) : 0;
+    const body = Math.sin(2 * Math.PI * (isCapture ? 185 : 245) * time) * firstHit;
+    const click = Math.sin(2 * Math.PI * (isCapture ? 920 : 760) * time) * firstHit;
+    const rebound = Math.sin(2 * Math.PI * (isCapture ? 145 : 205) * secondTime) * secondHit;
+    const sample = Math.max(-1, Math.min(1,
+      body * 0.58 + click * 0.25 + rebound * 0.42 + noise * firstHit * 0.12,
+    ));
+    view.setInt16(44 + index * 2, sample * 32767, true);
+  }
+
+  return URL.createObjectURL(new Blob([buffer], { type: "audio/wav" }));
+}
+
+const mediaSoundUrls = mediaAudio
+  ? { move: createChessSoundUrl(false), capture: createChessSoundUrl(true) }
+  : null;
+
+if (mediaAudio) {
+  mediaAudio.preload = "auto";
+  mediaAudio.setAttribute("playsinline", "");
+}
+
+function unlockMediaAudio() {
+  if (!mediaAudio || !mediaSoundUrls || mediaAudioUnlocked) {
+    return Promise.resolve(mediaAudioUnlocked);
+  }
+
+  if (!mediaAudioUnlockPromise) {
+    mediaAudio.src = mediaSoundUrls.move;
+    mediaAudio.volume = 0.01;
+    mediaAudio.currentTime = 0;
+    mediaAudioUnlockPromise = mediaAudio.play()
+      .then(() => {
+        mediaAudio.pause();
+        mediaAudio.currentTime = 0;
+        mediaAudio.volume = 1;
+        mediaAudioUnlocked = true;
+        return true;
+      })
+      .catch(() => false)
+      .finally(() => {
+        mediaAudioUnlockPromise = null;
+      });
+  }
+
+  return mediaAudioUnlockPromise;
+}
+
+async function playMediaSound(isCapture) {
+  if (!mediaAudio || !mediaSoundUrls) {
+    return false;
+  }
+
+  if (!mediaAudioUnlocked && !(await unlockMediaAudio())) {
+    return false;
+  }
+
+  mediaAudio.pause();
+  mediaAudio.src = isCapture ? mediaSoundUrls.capture : mediaSoundUrls.move;
+  mediaAudio.volume = 1;
+  mediaAudio.currentTime = 0;
+  try {
+    await mediaAudio.play();
+    return true;
+  } catch {
+    mediaAudioUnlocked = false;
+    return false;
+  }
+}
 function ensureAudioContext() {
   if (!AudioContextClass) {
     return false;
@@ -203,7 +310,14 @@ function playWoodKnock(startTime, frequency, volume, duration, type = "triangle"
 }
 
 async function playMoveSound(isCapture) {
+  // Safari on macOS/iOS can report a running Web Audio context while its
+  // hardware output is silent. Use the user-authorized media element there.
+  if (isAppleDevice && await playMediaSound(isCapture)) {
+    return;
+  }
+
   if (!(await unlockChessAudio()) || !audioContext || audioContext.state !== "running") {
+    await playMediaSound(isCapture);
     return;
   }
 
@@ -976,7 +1090,17 @@ promotionModal.addEventListener("click", (event) => {
     clearPromotion();
   }
 });
-document.addEventListener("pointerdown", unlockChessAudio, { passive: true });
-document.addEventListener("touchstart", unlockChessAudio, { passive: true });
-document.addEventListener("click", unlockChessAudio, { passive: true });
-document.addEventListener("keydown", unlockChessAudio);
+function unlockAllChessAudio() {
+  unlockChessAudio();
+  unlockMediaAudio();
+}
+
+document.addEventListener("pointerdown", unlockAllChessAudio, { passive: true });
+document.addEventListener("touchstart", unlockAllChessAudio, { passive: true });
+document.addEventListener("click", unlockAllChessAudio, { passive: true });
+document.addEventListener("keydown", unlockAllChessAudio);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && audioContext && audioContext.state !== "running") {
+    audioContext.resume().catch(() => {});
+  }
+});
