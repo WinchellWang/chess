@@ -13,8 +13,6 @@ const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 let audioContext = null;
 let audioOutput = null;
 let audioUnlockPromise = null;
-let mediaAudioUnlocked = false;
-let mediaAudioUnlockPromise = null;
 const isAppleDevice = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent)
   || (navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.userAgent));
 const mediaAudio = typeof Audio === "function" ? new Audio() : null;
@@ -185,38 +183,8 @@ if (mediaAudio) {
   mediaAudio.setAttribute("playsinline", "");
 }
 
-function unlockMediaAudio() {
-  if (!mediaAudio || !mediaSoundUrls || mediaAudioUnlocked) {
-    return Promise.resolve(mediaAudioUnlocked);
-  }
-
-  if (!mediaAudioUnlockPromise) {
-    mediaAudio.src = mediaSoundUrls.move;
-    mediaAudio.volume = 0.01;
-    mediaAudio.currentTime = 0;
-    mediaAudioUnlockPromise = mediaAudio.play()
-      .then(() => {
-        mediaAudio.pause();
-        mediaAudio.currentTime = 0;
-        mediaAudio.volume = 1;
-        mediaAudioUnlocked = true;
-        return true;
-      })
-      .catch(() => false)
-      .finally(() => {
-        mediaAudioUnlockPromise = null;
-      });
-  }
-
-  return mediaAudioUnlockPromise;
-}
-
 async function playMediaSound(isCapture) {
   if (!mediaAudio || !mediaSoundUrls) {
-    return false;
-  }
-
-  if (!mediaAudioUnlocked && !(await unlockMediaAudio())) {
     return false;
   }
 
@@ -228,7 +196,6 @@ async function playMediaSound(isCapture) {
     await mediaAudio.play();
     return true;
   } catch {
-    mediaAudioUnlocked = false;
     return false;
   }
 }
@@ -647,7 +614,7 @@ function render() {
   renderBoard();
   renderHistory();
   updateStatus();
-  undoBtn.disabled = state.aiThinking || game._history.length < 2;
+  undoBtn.disabled = state.aiThinking || isGameOver() || game._history.length < 2;
 }
 
 function showGame(mode) {
@@ -735,7 +702,7 @@ function onSquareClick(square) {
 }
 
 function undoTwoPlies() {
-  if (state.aiThinking || game._history.length < 2) {
+  if (state.aiThinking || isGameOver() || game._history.length < 2) {
     return;
   }
 
@@ -1090,15 +1057,8 @@ promotionModal.addEventListener("click", (event) => {
     clearPromotion();
   }
 });
-function unlockAllChessAudio() {
-  unlockChessAudio();
-  unlockMediaAudio();
-}
-
-document.addEventListener("pointerdown", unlockAllChessAudio, { passive: true });
-document.addEventListener("touchstart", unlockAllChessAudio, { passive: true });
-document.addEventListener("click", unlockAllChessAudio, { passive: true });
-document.addEventListener("keydown", unlockAllChessAudio);
+document.addEventListener("pointerdown", unlockChessAudio, { passive: true });
+document.addEventListener("keydown", unlockChessAudio);
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && audioContext && audioContext.state !== "running") {
     audioContext.resume().catch(() => {});
