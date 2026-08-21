@@ -11,6 +11,8 @@ const AI_NEAR_BEST_MARGIN = 90;
 const AI_SEARCH_TIMEOUT = Symbol("AI_SEARCH_TIMEOUT");
 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 let audioContext = null;
+let audioOutput = null;
+let audioUnlockPromise = null;
 const PIECE_IMAGES = {
   p: { w: "./assets/pieces/white_pawn.svg", b: "./assets/pieces/black_pawn.svg" },
   r: { w: "./assets/pieces/white_rook.svg", b: "./assets/pieces/black_rook.svg" },
@@ -123,49 +125,96 @@ async function loadAboutContent() {
   }
 }
 
-function unlockChessAudio() {
+function ensureAudioContext() {
   if (!AudioContextClass) {
-    return;
+    return false;
   }
 
-  audioContext ||= new AudioContextClass();
-  if (audioContext.state === "suspended") {
-    audioContext.resume().catch(() => {});
+  if (!audioContext || audioContext.state === "closed") {
+    try {
+      audioContext = new AudioContextClass({ latencyHint: "interactive" });
+    } catch {
+      audioContext = new AudioContextClass();
+    }
+
+    const compressor = audioContext.createDynamicsCompressor();
+    const masterGain = audioContext.createGain();
+    compressor.threshold.value = -18;
+    compressor.knee.value = 8;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.12;
+    masterGain.gain.value = 0.95;
+    compressor.connect(masterGain).connect(audioContext.destination);
+    audioOutput = compressor;
   }
+
+  return true;
 }
 
-function playWoodKnock(startTime, frequency, volume, duration) {
+async function unlockChessAudio() {
+  if (!ensureAudioContext()) {
+    return false;
+  }
+
+  if (audioContext.state === "running") {
+    return true;
+  }
+
+  if (!audioUnlockPromise) {
+    audioUnlockPromise = audioContext.resume()
+      .then(() => {
+        // A silent buffer also unlocks older iOS Safari versions that resume
+        // the context while leaving its audio output muted.
+        const buffer = audioContext.createBuffer(1, 1, audioContext.sampleRate);
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioOutput);
+        source.start();
+        return audioContext.state === "running";
+      })
+      .catch(() => false)
+      .finally(() => {
+        audioUnlockPromise = null;
+      });
+  }
+
+  return audioUnlockPromise;
+}
+
+function playWoodKnock(startTime, frequency, volume, duration, type = "triangle", cutoff = 3200) {
   const oscillator = audioContext.createOscillator();
   const gain = audioContext.createGain();
   const filter = audioContext.createBiquadFilter();
 
-  oscillator.type = "triangle";
+  oscillator.type = type;
   oscillator.frequency.setValueAtTime(frequency, startTime);
-  oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.58, startTime + duration);
+  oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.52, startTime + duration);
   filter.type = "lowpass";
-  filter.frequency.setValueAtTime(1800, startTime);
-  filter.Q.value = 0.7;
+  filter.frequency.setValueAtTime(cutoff, startTime);
+  filter.Q.value = 0.9;
   gain.gain.setValueAtTime(0.0001, startTime);
-  gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.004);
+  gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.002);
   gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
 
-  oscillator.connect(filter).connect(gain).connect(audioContext.destination);
+  oscillator.connect(filter).connect(gain).connect(audioOutput);
   oscillator.start(startTime);
   oscillator.stop(startTime + duration + 0.01);
 }
 
-function playMoveSound(isCapture) {
-  unlockChessAudio();
-  if (!audioContext || audioContext.state !== "running") {
+async function playMoveSound(isCapture) {
+  if (!(await unlockChessAudio()) || !audioContext || audioContext.state !== "running") {
     return;
   }
 
-  const now = audioContext.currentTime;
+  const now = audioContext.currentTime + 0.01;
   if (isCapture) {
-    playWoodKnock(now, 185, 0.19, 0.095);
-    playWoodKnock(now + 0.045, 125, 0.15, 0.13);
+    playWoodKnock(now, 410, 0.42, 0.075, "square", 4200);
+    playWoodKnock(now + 0.032, 175, 0.38, 0.14, "triangle", 2600);
+    playWoodKnock(now + 0.055, 720, 0.18, 0.055, "triangle", 5200);
   } else {
-    playWoodKnock(now, 240, 0.14, 0.085);
+    playWoodKnock(now, 390, 0.38, 0.07, "square", 4300);
+    playWoodKnock(now + 0.018, 225, 0.24, 0.1, "triangle", 2800);
   }
 }
 
@@ -927,4 +976,7 @@ promotionModal.addEventListener("click", (event) => {
     clearPromotion();
   }
 });
-document.addEventListener("pointerdown", unlockChessAudio, { once: true });
+document.addEventListener("pointerdown", unlockChessAudio, { passive: true });
+document.addEventListener("touchstart", unlockChessAudio, { passive: true });
+document.addEventListener("click", unlockChessAudio, { passive: true });
+document.addEventListener("keydown", unlockChessAudio);
