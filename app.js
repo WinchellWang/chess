@@ -626,7 +626,6 @@ function showGame(mode) {
   landingEl.classList.add("is-hidden");
   gameViewEl.classList.remove("is-hidden");
   siteFooter.classList.add("is-hidden");
-  document.body.classList.add("game-active");
   game.reset();
   render();
   maybeRunAiMove();
@@ -641,7 +640,6 @@ function showAiGame(humanColor) {
   landingEl.classList.add("is-hidden");
   gameViewEl.classList.remove("is-hidden");
   siteFooter.classList.add("is-hidden");
-  document.body.classList.add("game-active");
   game.reset();
   render();
   maybeRunAiMove();
@@ -658,7 +656,6 @@ function showLanding() {
   gameViewEl.classList.add("is-hidden");
   landingEl.classList.remove("is-hidden");
   siteFooter.classList.remove("is-hidden");
-  document.body.classList.remove("game-active");
   render();
 }
 
