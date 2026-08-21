@@ -5,6 +5,8 @@ const RANKS = "87654321";
 const AI_SEARCH_MAX_DEPTH = 3;
 const AI_SEARCH_TIME_MS = 1500;
 const AI_MOVE_DELAY_MS = 320;
+const AI_MOVE_HARD_TIMEOUT_MS = 5000;
+const AI_SEARCH_YIELD_EVERY_NODES = 128;
 const AI_NEAR_BEST_MARGIN = 90;
 const AI_SEARCH_TIMEOUT = Symbol("AI_SEARCH_TIMEOUT");
 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -26,6 +28,7 @@ const state = {
   legalMoves: [],
   pendingPromotion: null,
   aiThinking: false,
+  aiJobId: 0,
   winner: null,
 };
 
@@ -515,7 +518,7 @@ function showAiGame(humanColor) {
 function showLanding() {
   state.mode = null;
   state.humanColor = "w";
-  state.aiThinking = false;
+  cancelAiMove();
   clearPromotion();
   clearWinner();
   clearSelection();
@@ -585,13 +588,13 @@ function restartGame() {
   clearPromotion();
   clearWinner();
   game.reset();
-  state.aiThinking = false;
+  cancelAiMove();
   clearSelection();
   render();
   maybeRunAiMove();
 }
 
-function evaluateBoard() {
+function evaluateBoard(searchGame = game) {
   const pieceValues = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
   const pieceSquareTables = {
     p: [
@@ -657,8 +660,8 @@ function evaluateBoard() {
   };
 
   let score = 0;
-  for (let index = 0; index < game.board().length; index += 1) {
-    const row = game.board()[index];
+  for (let index = 0; index < searchGame.board().length; index += 1) {
+    const row = searchGame.board()[index];
     for (let file = 0; file < row.length; file += 1) {
       const piece = row[file];
       if (!piece) {
@@ -677,10 +680,11 @@ function evaluateBoard() {
   return score;
 }
 
-function pickBestMove() {
+async function pickBestMove() {
   const aiColor = getAiColor();
+  const searchGame = new Chess(game.fen());
   const deadline = performance.now() + AI_SEARCH_TIME_MS;
-  const fallbackMoves = getOrderedMoves();
+  const fallbackMoves = getOrderedMoves(searchGame);
   if (!fallbackMoves.length) {
     return null;
   }
@@ -692,7 +696,7 @@ function pickBestMove() {
   // a partially searched root move to bias the result.
   for (let depth = 1; depth <= AI_SEARCH_MAX_DEPTH; depth += 1) {
     try {
-      const candidates = searchBestMoves(depth, aiColor, deadline);
+      const candidates = await searchBestMoves(searchGame, depth, aiColor, deadline, { nodes: 0 });
       if (candidates.length) {
         completedResult = chooseHumanLikeMove(candidates);
       }
@@ -713,8 +717,8 @@ function moveSortScore(move) {
   return captureWeight + promotionWeight;
 }
 
-function getOrderedMoves() {
-  return game._moves({ legal: false }).slice().sort((a, b) => moveSortScore(b) - moveSortScore(a));
+function getOrderedMoves(searchGame = game) {
+  return searchGame._moves({ legal: false }).slice().sort((a, b) => moveSortScore(b) - moveSortScore(a));
 }
 
 function moveToResult(move) {
@@ -730,6 +734,15 @@ function moveToResult(move) {
 function checkSearchDeadline(deadline) {
   if (performance.now() >= deadline) {
     throw AI_SEARCH_TIMEOUT;
+  }
+}
+
+async function yieldToBrowser(searchContext, deadline) {
+  searchContext.nodes += 1;
+  checkSearchDeadline(deadline);
+  if (searchContext.nodes % AI_SEARCH_YIELD_EVERY_NODES === 0) {
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    checkSearchDeadline(deadline);
   }
 }
 
@@ -753,9 +766,9 @@ function chooseHumanLikeMove(candidates) {
   return moveToResult(nearBest[selectedIndex].move);
 }
 
-function searchBestMoves(depth, aiColor, deadline) {
-  checkSearchDeadline(deadline);
-  const moves = getOrderedMoves();
+async function searchBestMoves(searchGame, depth, aiColor, deadline, searchContext) {
+  await yieldToBrowser(searchContext, deadline);
+  const moves = getOrderedMoves(searchGame);
   const candidates = [];
 
   if (!moves.length) {
@@ -763,52 +776,52 @@ function searchBestMoves(depth, aiColor, deadline) {
   }
 
   for (const move of moves) {
-    checkSearchDeadline(deadline);
-    game._makeMove(move);
+    await yieldToBrowser(searchContext, deadline);
+    searchGame._makeMove(move);
     try {
-      const score = search(depth - 1, -Infinity, Infinity, aiColor, deadline);
+      const score = await search(searchGame, depth - 1, -Infinity, Infinity, aiColor, deadline, searchContext);
       candidates.push({ move, score });
     } finally {
-      game._undoMove();
+      searchGame._undoMove();
     }
   }
 
   return candidates.sort((a, b) => b.score - a.score);
 }
 
-function search(depth, alpha, beta, aiColor, deadline) {
-  checkSearchDeadline(deadline);
+async function search(searchGame, depth, alpha, beta, aiColor, deadline, searchContext) {
+  await yieldToBrowser(searchContext, deadline);
 
-  if (game._kings.w === -1) {
+  if (searchGame._kings.w === -1) {
     return aiColor === "b" ? 100000 : -100000;
   }
 
-  if (game._kings.b === -1) {
+  if (searchGame._kings.b === -1) {
     return aiColor === "w" ? 100000 : -100000;
   }
 
   if (depth <= 0) {
-    const base = evaluateBoard();
+    const base = evaluateBoard(searchGame);
     return aiColor === "b" ? base : -base;
   }
 
-  const moves = game._moves({ legal: false });
+  const moves = searchGame._moves({ legal: false });
   if (!moves.length) {
-    return game.turn() === aiColor ? -100000 : 100000;
+    return searchGame.turn() === aiColor ? -100000 : 100000;
   }
 
-  const maximizing = game.turn() === aiColor;
+  const maximizing = searchGame.turn() === aiColor;
   let best = maximizing ? -Infinity : Infinity;
   const orderedMoves = moves.slice().sort((a, b) => moveSortScore(b) - moveSortScore(a));
 
   for (const move of orderedMoves) {
-    checkSearchDeadline(deadline);
-    game._makeMove(move);
+    await yieldToBrowser(searchContext, deadline);
+    searchGame._makeMove(move);
     let score;
     try {
-      score = search(depth - 1, alpha, beta, aiColor, deadline);
+      score = await search(searchGame, depth - 1, alpha, beta, aiColor, deadline, searchContext);
     } finally {
-      game._undoMove();
+      searchGame._undoMove();
     }
 
     if (maximizing) {
@@ -837,6 +850,26 @@ function search(depth, alpha, beta, aiColor, deadline) {
   return best;
 }
 
+function cancelAiMove() {
+  state.aiJobId += 1;
+  state.aiThinking = false;
+}
+
+function playFirstAvailableAiMove(preferredMove) {
+  const candidates = preferredMove
+    ? [preferredMove, ...getOrderedMoves().map(moveToResult)]
+    : getOrderedMoves().map(moveToResult);
+
+  for (const move of candidates) {
+    const promotion = move.promotion || (isPromotionMove(move.from, move.to) ? "q" : undefined);
+    if (executePseudoMove(move.from, move.to, promotion)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function maybeRunAiMove() {
   const aiColor = getAiColor();
   if (state.mode !== "ai" || state.aiThinking || isGameOver() || game.turn() !== aiColor) {
@@ -844,18 +877,36 @@ function maybeRunAiMove() {
   }
 
   state.aiThinking = true;
+  const jobId = ++state.aiJobId;
   render();
 
-  window.setTimeout(() => {
-    if (!isGameOver() && game.turn() === aiColor) {
-      const move = pickBestMove();
-      if (move) {
-        executePseudoMove(move.from, move.to, move.promotion || (isPromotionMove(move.from, move.to) ? "q" : undefined));
-      }
+  let finished = false;
+  const finish = (preferredMove = null) => {
+    if (finished || jobId !== state.aiJobId) {
+      return;
     }
 
+    finished = true;
+    if (!isGameOver() && game.turn() === aiColor) {
+      playFirstAvailableAiMove(preferredMove);
+    }
     state.aiThinking = false;
     render();
+  };
+
+  // The search yields to the browser, so this watchdog can always run. If
+  // evaluation fails or stalls, play the first available move at five seconds.
+  const watchdogId = window.setTimeout(() => finish(), AI_MOVE_HARD_TIMEOUT_MS);
+
+  window.setTimeout(async () => {
+    try {
+      finish(await pickBestMove());
+    } catch (error) {
+      console.error("AI move failed; using a fallback move.", error);
+      finish();
+    } finally {
+      window.clearTimeout(watchdogId);
+    }
   }, AI_MOVE_DELAY_MS);
 }
 
