@@ -7,8 +7,8 @@
     <title>Chess Arena</title>
     <link rel="icon" href="./assets/chess-logo.svg" type="image/svg+xml" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=20260822-1" />
-    <script type="module" src="./app.js?v=20260822-1"></script>
+    <link rel="stylesheet" href="./styles.css?v=20260822-2" />
+    <script type="module" src="./app.js?v=20260822-2"></script>
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-T3CHNX8CX6"></script>
     <script>
@@ -31,13 +31,7 @@
         <div class="mode-grid">
           <button id="startHumanBtn" class="mode-card" type="button">Local PvP</button>
 
-          <div class="mode-card mode-card--pve">
-            <div class="mode-card__label">PvE</div>
-            <div class="mode-card__choices">
-              <button id="startAiWhiteBtn" class="mode-chip" type="button">Start as White</button>
-              <button id="startAiBlackBtn" class="mode-chip" type="button">Start as Black</button>
-            </div>
-          </div>
+          <button id="startAiBtn" class="mode-card" type="button">PvE</button>
         </div>
 
         <section class="about-card card" aria-labelledby="aboutTitle">
@@ -50,18 +44,17 @@
 
       <section class="panel panel--game is-hidden" id="gameView">
         <div class="panel__header panel__header--game">
-          <div class="page-title-row">
+          <div class="page-title-row game-header-row">
             <h1 class="page-title">
               <img class="page-title__logo" src="./assets/chess-logo.svg" alt="Chess logo" />
               <span>Chess</span>
             </h1>
             <button id="backBtn" class="toolbar__btn toolbar__btn--inline" type="button">Mode select</button>
+            <div class="toolbar game-actions">
+              <button id="resetBtn" class="toolbar__btn" type="button">Restart game</button>
+              <button id="undoBtn" class="toolbar__btn" type="button">Undo move</button>
+            </div>
           </div>
-        </div>
-
-        <div class="toolbar">
-          <button id="resetBtn" class="toolbar__btn" type="button">Restart game</button>
-          <button id="undoBtn" class="toolbar__btn" type="button">Undo move</button>
         </div>
 
         <div class="turn-strip">
@@ -85,6 +78,17 @@
           </aside>
         </div>
       </section>
+
+      <div class="choice-modal is-hidden" id="colorModal" role="dialog" aria-modal="true" aria-labelledby="colorModalTitle">
+        <button class="choice-modal__backdrop" type="button" aria-label="Cancel color selection"></button>
+        <div class="choice-modal__panel">
+          <h2 id="colorModalTitle">Choose your color</h2>
+          <div class="choice-options">
+            <button id="startAiWhiteBtn" class="choice-option" type="button">Play as White</button>
+            <button id="startAiBlackBtn" class="choice-option" type="button">Play as Black</button>
+          </div>
+        </div>
+      </div>
 
       <div class="promotion-modal is-hidden" id="promotionModal" role="dialog" aria-modal="true" aria-labelledby="promotionTitle">
         <div class="promotion-modal__backdrop"></div>

@@ -11,7 +11,6 @@ const AI_NEAR_BEST_MARGIN = 90;
 const AI_SEARCH_TIMEOUT = Symbol("AI_SEARCH_TIMEOUT");
 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 let audioContext = null;
-let audioOutput = null;
 const PIECE_IMAGES = {
   p: { w: "./assets/pieces/white_pawn.svg", b: "./assets/pieces/black_pawn.svg" },
   r: { w: "./assets/pieces/white_rook.svg", b: "./assets/pieces/black_rook.svg" },
@@ -41,6 +40,7 @@ const undoBtn = document.getElementById("undoBtn");
 const resetBtn = document.getElementById("resetBtn");
 const backBtn = document.getElementById("backBtn");
 const startHumanBtn = document.getElementById("startHumanBtn");
+const startAiBtn = document.getElementById("startAiBtn");
 const startAiWhiteBtn = document.getElementById("startAiWhiteBtn");
 const startAiBlackBtn = document.getElementById("startAiBlackBtn");
 const historyList = document.getElementById("historyList");
@@ -48,6 +48,7 @@ const bottomFiles = document.getElementById("bottomFiles");
 const leftRanks = document.getElementById("leftRanks");
 const promotionModal = document.getElementById("promotionModal");
 const promotionOptions = document.getElementById("promotionOptions");
+const colorModal = document.getElementById("colorModal");
 const aboutContent = document.getElementById("aboutContent");
 const copyrightYear = document.getElementById("copyrightYear");
 const siteFooter = document.querySelector(".site-footer");
@@ -124,77 +125,53 @@ async function loadAboutContent() {
   }
 }
 
-function ensureAudioContext() {
-  if (!AudioContextClass) {
-    return false;
-  }
-
-  if (!audioContext || audioContext.state === "closed") {
-    try {
-      audioContext = new AudioContextClass({ latencyHint: "interactive" });
-    } catch {
-      audioContext = new AudioContextClass();
-    }
-
-    const compressor = audioContext.createDynamicsCompressor();
-    const masterGain = audioContext.createGain();
-    compressor.threshold.value = -18;
-    compressor.knee.value = 8;
-    compressor.ratio.value = 4;
-    compressor.attack.value = 0.003;
-    compressor.release.value = 0.12;
-    masterGain.gain.value = 0.95;
-    compressor.connect(masterGain).connect(audioContext.destination);
-    audioOutput = compressor;
-  }
-
-  return true;
-}
-
-function unlockChessAudio() {
-  if (!ensureAudioContext()) {
-    return false;
-  }
-
-  if (audioContext.state === "suspended") {
-    audioContext.resume().catch(() => {});
-  }
-
-  return audioContext.state === "running";
-}
-
-function playWoodKnock(startTime, frequency, volume, duration, type = "triangle", cutoff = 3200) {
-  const oscillator = audioContext.createOscillator();
-  const gain = audioContext.createGain();
-  const filter = audioContext.createBiquadFilter();
-
-  oscillator.type = type;
-  oscillator.frequency.setValueAtTime(frequency, startTime);
-  oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.52, startTime + duration);
-  filter.type = "lowpass";
-  filter.frequency.setValueAtTime(cutoff, startTime);
-  filter.Q.value = 0.9;
-  gain.gain.setValueAtTime(0.0001, startTime);
-  gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.002);
-  gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
-
-  oscillator.connect(filter).connect(gain).connect(audioOutput);
-  oscillator.start(startTime);
-  oscillator.stop(startTime + duration + 0.01);
+function unlockAudio() {
+  if (!AudioContextClass) return;
+  audioContext ||= new AudioContextClass();
+  if (audioContext.state === "suspended") audioContext.resume().catch(() => {});
 }
 
 function playMoveSound(isCapture) {
-  unlockChessAudio();
+  if (!AudioContextClass) return;
+  unlockAudio();
   if (!audioContext || audioContext.state !== "running") return;
 
-  const now = audioContext.currentTime + 0.01;
-  if (isCapture) {
-    playWoodKnock(now, 410, 0.42, 0.075, "square", 4200);
-    playWoodKnock(now + 0.032, 175, 0.38, 0.14, "triangle", 2600);
-    playWoodKnock(now + 0.055, 720, 0.18, 0.055, "triangle", 5200);
-  } else {
-    playWoodKnock(now, 390, 0.38, 0.07, "square", 4300);
-    playWoodKnock(now + 0.018, 225, 0.24, 0.1, "triangle", 2800);
+  const now = audioContext.currentTime;
+  const master = audioContext.createGain();
+  master.gain.setValueAtTime(isCapture ? 0.68 : 0.72, now);
+  master.gain.exponentialRampToValueAtTime(0.001, now + (isCapture ? 0.2 : 0.16));
+  master.connect(audioContext.destination);
+
+  const noiseLength = Math.floor(audioContext.sampleRate * (isCapture ? 0.05 : 0.035));
+  const noiseBuffer = audioContext.createBuffer(1, noiseLength, audioContext.sampleRate);
+  const noise = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseLength; i++) {
+    const envelope = Math.pow(1 - i / noiseLength, 3);
+    noise[i] = (Math.random() * 2 - 1) * envelope;
+  }
+  const noiseSource = audioContext.createBufferSource();
+  const noiseFilter = audioContext.createBiquadFilter();
+  noiseSource.buffer = noiseBuffer;
+  noiseFilter.type = "bandpass";
+  noiseFilter.frequency.setValueAtTime(isCapture ? 1150 : 1850, now);
+  noiseFilter.Q.setValueAtTime(isCapture ? 0.72 : 0.9, now);
+  noiseSource.connect(noiseFilter).connect(master);
+  noiseSource.start(now);
+
+  const tones = isCapture
+    ? [[175, 0.44, 0.16], [365, 0.16, 0.1]]
+    : [[235, 0.42, 0.12], [510, 0.18, 0.07]];
+  for (const [frequency, volume, duration] of tones) {
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(frequency, now);
+    oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.82, now + duration);
+    gain.gain.setValueAtTime(volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    oscillator.connect(gain).connect(master);
+    oscillator.start(now);
+    oscillator.stop(now + duration);
   }
 }
 
@@ -261,6 +238,16 @@ function clearPromotion() {
   state.pendingPromotion = null;
   promotionModal.classList.add("is-hidden");
   promotionOptions.innerHTML = "";
+}
+
+function showColorPicker() {
+  colorModal.classList.remove("is-hidden");
+  startAiWhiteBtn.focus();
+}
+
+function clearColorPicker() {
+  colorModal.classList.add("is-hidden");
+  startAiBtn.focus();
 }
 
 function clearWinner() {
@@ -532,6 +519,7 @@ function showGame(mode) {
 }
 
 function showAiGame(humanColor) {
+  colorModal.classList.add("is-hidden");
   state.mode = "ai";
   state.humanColor = humanColor;
   clearPromotion();
@@ -551,6 +539,7 @@ function showLanding() {
   state.humanColor = "w";
   cancelAiMove();
   clearPromotion();
+  colorModal.classList.add("is-hidden");
   clearWinner();
   clearSelection();
   game.reset();
@@ -949,6 +938,7 @@ loadAboutContent();
 render();
 
 startHumanBtn.addEventListener("click", () => showGame("human"));
+startAiBtn.addEventListener("click", showColorPicker);
 startAiWhiteBtn.addEventListener("click", () => showAiGame("w"));
 startAiBlackBtn.addEventListener("click", () => showAiGame("b"));
 backBtn.addEventListener("click", showLanding);
@@ -959,4 +949,7 @@ promotionModal.addEventListener("click", (event) => {
     clearPromotion();
   }
 });
-document.addEventListener("pointerdown", unlockChessAudio, { once: true, passive: true });
+colorModal.addEventListener("click", (event) => {
+  if (event.target.classList.contains("choice-modal__backdrop")) clearColorPicker();
+});
+document.addEventListener("pointerdown", unlockAudio, { once: true });
