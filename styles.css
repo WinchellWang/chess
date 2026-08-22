@@ -393,6 +393,14 @@ p {
   min-width: 0;
 }
 
+.sidebar .card {
+  padding: 8px;
+}
+
+.sidebar h2 {
+  margin-bottom: 8px;
+}
+
 .card {
   border-radius: 24px;
   padding: 22px;
@@ -404,10 +412,10 @@ p {
 
 .history-list {
   display: grid;
-  gap: 10px;
+  gap: 6px;
   min-height: 120px;
   /* 12 rows at 44px plus the 11 gaps between them. */
-  max-height: 638px;
+  max-height: 594px;
   overflow-y: auto;
   align-content: start;
   scrollbar-gutter: stable;
@@ -431,7 +439,7 @@ p {
   min-height: 44px;
   align-items: center;
   column-gap: 8px;
-  padding: 10px 12px;
+  padding: 6px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.05);
@@ -697,8 +705,12 @@ p {
 }
 
 @media (orientation: landscape) and (min-width: 761px) and (max-height: 900px) {
+  .shell {
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+
   .game-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(360px, 380px);
+    grid-template-columns: minmax(0, 1fr) 320px;
   }
 
   .panel--game .board-wrap {
