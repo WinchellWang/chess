@@ -140,12 +140,58 @@ function playMoveSound(isCapture) {
   if (!audioContext || audioContext.state !== "running") return;
 
   const now = audioContext.currentTime;
+
+  if (isCapture) {
+    const master = audioContext.createGain();
+    master.gain.setValueAtTime(0.68, now);
+    master.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    master.connect(audioContext.destination);
+
+    // A capture is two tightly layered, bright clicks instead of one heavy thud.
+    for (const [offset, pitch, volume] of [[0, 1, 1], [0.055, 1.12, 0.82]]) {
+      const start = now + offset;
+      const noiseLength = Math.floor(audioContext.sampleRate * 0.022);
+      const noiseBuffer = audioContext.createBuffer(1, noiseLength, audioContext.sampleRate);
+      const noise = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < noiseLength; i++) {
+        const envelope = Math.pow(1 - i / noiseLength, 5);
+        noise[i] = (Math.random() * 2 - 1) * envelope;
+      }
+
+      const noiseSource = audioContext.createBufferSource();
+      const noiseFilter = audioContext.createBiquadFilter();
+      const noiseGain = audioContext.createGain();
+      noiseSource.buffer = noiseBuffer;
+      noiseFilter.type = "highpass";
+      noiseFilter.frequency.setValueAtTime(2400, start);
+      noiseFilter.Q.setValueAtTime(0.8, start);
+      noiseGain.gain.setValueAtTime(0.42 * volume, start);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, start + 0.022);
+      noiseSource.connect(noiseFilter).connect(noiseGain).connect(master);
+      noiseSource.start(start);
+
+      for (const [frequency, toneVolume, duration] of [[1320, 0.28, 0.07], [1980, 0.16, 0.045]]) {
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(frequency * pitch, start);
+        oscillator.frequency.exponentialRampToValueAtTime(frequency * pitch * 1.08, start + duration);
+        gain.gain.setValueAtTime(toneVolume * volume, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+        oscillator.connect(gain).connect(master);
+        oscillator.start(start);
+        oscillator.stop(start + duration);
+      }
+    }
+    return;
+  }
+
   const master = audioContext.createGain();
-  master.gain.setValueAtTime(isCapture ? 0.78 : 0.72, now);
-  master.gain.exponentialRampToValueAtTime(0.001, now + (isCapture ? 0.36 : 0.16));
+  master.gain.setValueAtTime(0.72, now);
+  master.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
   master.connect(audioContext.destination);
 
-  const noiseLength = Math.floor(audioContext.sampleRate * (isCapture ? 0.09 : 0.035));
+  const noiseLength = Math.floor(audioContext.sampleRate * 0.035);
   const noiseBuffer = audioContext.createBuffer(1, noiseLength, audioContext.sampleRate);
   const noise = noiseBuffer.getChannelData(0);
   for (let i = 0; i < noiseLength; i++) {
@@ -155,19 +201,17 @@ function playMoveSound(isCapture) {
   const noiseSource = audioContext.createBufferSource();
   const noiseFilter = audioContext.createBiquadFilter();
   noiseSource.buffer = noiseBuffer;
-  noiseFilter.type = isCapture ? "lowpass" : "bandpass";
-  noiseFilter.frequency.setValueAtTime(isCapture ? 220 : 1850, now);
-  noiseFilter.Q.setValueAtTime(isCapture ? 0.65 : 0.9, now);
+  noiseFilter.type = "bandpass";
+  noiseFilter.frequency.setValueAtTime(1850, now);
+  noiseFilter.Q.setValueAtTime(0.9, now);
   noiseSource.connect(noiseFilter).connect(master);
   noiseSource.start(now);
 
-  const tones = isCapture
-    ? [[62, 0.62, 0.34], [93, 0.34, 0.25]]
-    : [[235, 0.42, 0.12], [510, 0.18, 0.07]];
+  const tones = [[235, 0.42, 0.12], [510, 0.18, 0.07]];
   for (const [frequency, volume, duration] of tones) {
     const oscillator = audioContext.createOscillator();
     const gain = audioContext.createGain();
-    oscillator.type = isCapture ? "triangle" : "sine";
+    oscillator.type = "sine";
     oscillator.frequency.setValueAtTime(frequency, now);
     oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.82, now + duration);
     gain.gain.setValueAtTime(volume, now);
