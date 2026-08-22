@@ -141,11 +141,11 @@ function playMoveSound(isCapture) {
 
   const now = audioContext.currentTime;
   const master = audioContext.createGain();
-  master.gain.setValueAtTime(isCapture ? 0.68 : 0.72, now);
-  master.gain.exponentialRampToValueAtTime(0.001, now + (isCapture ? 0.2 : 0.16));
+  master.gain.setValueAtTime(isCapture ? 0.78 : 0.72, now);
+  master.gain.exponentialRampToValueAtTime(0.001, now + (isCapture ? 0.36 : 0.16));
   master.connect(audioContext.destination);
 
-  const noiseLength = Math.floor(audioContext.sampleRate * (isCapture ? 0.05 : 0.035));
+  const noiseLength = Math.floor(audioContext.sampleRate * (isCapture ? 0.09 : 0.035));
   const noiseBuffer = audioContext.createBuffer(1, noiseLength, audioContext.sampleRate);
   const noise = noiseBuffer.getChannelData(0);
   for (let i = 0; i < noiseLength; i++) {
@@ -155,19 +155,19 @@ function playMoveSound(isCapture) {
   const noiseSource = audioContext.createBufferSource();
   const noiseFilter = audioContext.createBiquadFilter();
   noiseSource.buffer = noiseBuffer;
-  noiseFilter.type = "bandpass";
-  noiseFilter.frequency.setValueAtTime(isCapture ? 1150 : 1850, now);
-  noiseFilter.Q.setValueAtTime(isCapture ? 0.72 : 0.9, now);
+  noiseFilter.type = isCapture ? "lowpass" : "bandpass";
+  noiseFilter.frequency.setValueAtTime(isCapture ? 220 : 1850, now);
+  noiseFilter.Q.setValueAtTime(isCapture ? 0.65 : 0.9, now);
   noiseSource.connect(noiseFilter).connect(master);
   noiseSource.start(now);
 
   const tones = isCapture
-    ? [[175, 0.44, 0.16], [365, 0.16, 0.1]]
+    ? [[62, 0.62, 0.34], [93, 0.34, 0.25]]
     : [[235, 0.42, 0.12], [510, 0.18, 0.07]];
   for (const [frequency, volume, duration] of tones) {
     const oscillator = audioContext.createOscillator();
     const gain = audioContext.createGain();
-    oscillator.type = "sine";
+    oscillator.type = isCapture ? "triangle" : "sine";
     oscillator.frequency.setValueAtTime(frequency, now);
     oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.82, now + duration);
     gain.gain.setValueAtTime(volume, now);
@@ -267,6 +267,16 @@ function shouldRotateBlackPieces() {
 
 function isGameOver() {
   return Boolean(state.winner);
+}
+
+function getUndoCount() {
+  return state.mode === "ai" ? 2 : 1;
+}
+
+function canUndo() {
+  const isHumanTurn = state.mode !== "ai" || game.turn() === state.humanColor;
+  return !state.aiThinking && !state.animating && !isGameOver()
+    && isHumanTurn && game._history.length >= getUndoCount();
 }
 
 function getTurnLabel() {
@@ -594,7 +604,7 @@ function render() {
   renderBoard();
   renderHistory();
   updateStatus();
-  undoBtn.disabled = state.aiThinking || state.animating || isGameOver() || game._history.length < 2;
+  undoBtn.disabled = !canUndo();
   resetBtn.disabled = state.animating;
   backBtn.disabled = state.animating;
 }
@@ -688,15 +698,14 @@ function onSquareClick(square) {
   }
 }
 
-function undoTwoPlies() {
-  if (state.aiThinking || state.animating || isGameOver() || game._history.length < 2) {
-    return;
-  }
+function undoMove() {
+  if (!canUndo()) return;
 
   clearPromotion();
   clearWinner();
-  game.undo();
-  game.undo();
+  for (let step = 0; step < getUndoCount(); step++) {
+    game.undo();
+  }
   clearSelection();
   render();
 }
@@ -1040,7 +1049,7 @@ startAiBtn.addEventListener("click", showColorPicker);
 startAiWhiteBtn.addEventListener("click", () => showAiGame("w"));
 startAiBlackBtn.addEventListener("click", () => showAiGame("b"));
 backBtn.addEventListener("click", showLanding);
-undoBtn.addEventListener("click", undoTwoPlies);
+undoBtn.addEventListener("click", undoMove);
 resetBtn.addEventListener("click", restartGame);
 promotionModal.addEventListener("click", (event) => {
   if (event.target === promotionModal || event.target.classList.contains("promotion-modal__backdrop")) {
