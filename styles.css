@@ -384,7 +384,13 @@ p {
   display: grid;
   gap: 18px;
   align-content: start;
+  min-width: 0;
   max-width: none;
+}
+
+.sidebar .card,
+.history-list {
+  min-width: 0;
 }
 
 .card {
@@ -421,10 +427,10 @@ p {
 
 .history-row {
   display: grid;
-  grid-template-columns: 40px 1fr 1fr;
+  grid-template-columns: 32px max-content max-content;
   min-height: 44px;
   align-items: center;
-  gap: 10px;
+  column-gap: 8px;
   padding: 10px 12px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.03);
@@ -555,16 +561,7 @@ p {
 
 .history-move {
   font-weight: 600;
-}
-
-@media (min-width: 1081px) {
-  .history-row {
-    grid-template-columns: 44px minmax(112px, 1fr) minmax(112px, 1fr);
-  }
-
-  .history-move {
-    white-space: nowrap;
-  }
+  white-space: nowrap;
 }
 
 .site-footer {
@@ -700,6 +697,10 @@ p {
 }
 
 @media (orientation: landscape) and (min-width: 761px) and (max-height: 900px) {
+  .game-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 380px);
+  }
+
   .panel--game .board-wrap {
     width: min(100%, calc(100svh - 190px), 680px);
   }
