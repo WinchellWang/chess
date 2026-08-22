@@ -101,7 +101,7 @@ p {
   align-items: center;
   gap: 10px;
   margin: 0;
-  font-size: 2.8rem;
+  font-size: clamp(2.8rem, 3.5vw, 3.2rem);
 }
 
 .page-title-row {
@@ -614,6 +614,10 @@ p {
 }
 
 @media (orientation: portrait) {
+  .page-title {
+    font-size: clamp(2.1rem, 7vw, 2.8rem);
+  }
+
   .game-layout {
     grid-template-columns: 1fr;
   }
