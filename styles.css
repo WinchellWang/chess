@@ -370,6 +370,35 @@ p {
   filter: var(--piece-shadow);
 }
 
+.board.is-pvp .piece--black,
+.piece-animation-layer.is-pvp .piece--black {
+  transform: rotate(180deg);
+}
+
+.piece--animation-target {
+  opacity: 0;
+}
+
+.piece-animation-layer {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.piece-animation-layer .piece {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: var(--piece-shadow);
+}
+
+.piece-animation-layer--captured {
+  z-index: 39;
+}
+
 .square.white-piece .piece {
   color: #f8f7f2;
   text-shadow: 0 2px 3px rgba(0, 0, 0, 0.35), 0 0 1px rgba(0, 0, 0, 0.35);
@@ -620,6 +649,11 @@ p {
 
   .game-layout {
     grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    width: calc(100% - var(--board-gutter));
+    margin-left: var(--board-gutter);
   }
 
   .game-actions {

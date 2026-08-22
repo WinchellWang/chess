@@ -9,8 +9,10 @@ const AI_MOVE_HARD_TIMEOUT_MS = 5000;
 const AI_SEARCH_YIELD_EVERY_NODES = 128;
 const AI_NEAR_BEST_MARGIN = 90;
 const AI_SEARCH_TIMEOUT = Symbol("AI_SEARCH_TIMEOUT");
+const MOVE_ANIMATION_MS = 380;
 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 let audioContext = null;
+const moveAnimationSnapshots = new WeakMap();
 const PIECE_IMAGES = {
   p: { w: "./assets/pieces/white_pawn.svg", b: "./assets/pieces/black_pawn.svg" },
   r: { w: "./assets/pieces/white_rook.svg", b: "./assets/pieces/black_rook.svg" },
@@ -29,6 +31,7 @@ const state = {
   pendingPromotion: null,
   aiThinking: false,
   aiJobId: 0,
+  animating: false,
   winner: null,
 };
 
@@ -327,7 +330,7 @@ function showPromotionPicker(from, to) {
   promotionModal.classList.remove("is-hidden");
 }
 
-function finalizePromotion(promotion) {
+async function finalizePromotion(promotion) {
   if (!state.pendingPromotion) {
     return;
   }
@@ -341,7 +344,7 @@ function finalizePromotion(promotion) {
   }
 
   clearSelection();
-  render();
+  await animateCommittedMove(move);
   maybeRunAiMove();
 }
 
@@ -412,6 +415,7 @@ function updateStatus() {
 }
 
 function renderBoard() {
+  boardEl.classList.toggle("is-pvp", state.mode === "human");
   const selected = state.selected;
   const legalTargets = new Map(state.legalMoves.map((move) => [move.square, move.capture]));
 
@@ -432,12 +436,97 @@ function renderBoard() {
     if (piece) {
       squareEl.classList.add(piece.color === "w" ? "white-piece" : "black-piece");
       const pieceEl = document.createElement("img");
-      pieceEl.className = "piece";
+      pieceEl.className = `piece piece--${piece.color === "w" ? "white" : "black"}`;
       pieceEl.src = PIECE_IMAGES[piece.type][piece.color];
       pieceEl.alt = `${piece.color === "w" ? "White" : "Black"} ${piece.type}`;
       squareEl.appendChild(pieceEl);
     }
   });
+}
+
+function getMoveAnimationSnapshot(fromSquare, toSquare, matchedMove) {
+  const sourcePiece = boardEl.querySelector(`[data-square="${fromSquare}"] .piece`);
+  let capturedSquare = toSquare;
+
+  // En passant captures a pawn beside the destination rather than on it.
+  if (matchedMove.captured && !game.get(toSquare)) {
+    capturedSquare = `${toSquare[0]}${fromSquare[1]}`;
+  }
+
+  const capturedPiece = matchedMove.captured
+    ? boardEl.querySelector(`[data-square="${capturedSquare}"] .piece`)
+    : null;
+
+  return {
+    fromSquare,
+    toSquare,
+    sourcePiece: sourcePiece?.cloneNode(true) || null,
+    sourceRect: sourcePiece?.getBoundingClientRect() || null,
+    capturedPiece: capturedPiece?.cloneNode(true) || null,
+    capturedRect: capturedPiece?.getBoundingClientRect() || null,
+  };
+}
+
+function placeAnimationPiece(piece, rect, className) {
+  const layer = document.createElement("div");
+  layer.className = `${className}${state.mode === "human" ? " is-pvp" : ""}`;
+  layer.style.left = `${rect.left}px`;
+  layer.style.top = `${rect.top}px`;
+  layer.style.width = `${rect.width}px`;
+  layer.style.height = `${rect.height}px`;
+  layer.appendChild(piece);
+  document.body.appendChild(layer);
+  return layer;
+}
+
+async function animateCommittedMove(move) {
+  const snapshot = moveAnimationSnapshots.get(move);
+  moveAnimationSnapshots.delete(move);
+  const shouldAnimate = Boolean(
+    snapshot?.sourcePiece
+    && snapshot.sourceRect
+    && !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+  state.animating = shouldAnimate;
+  render();
+
+  if (!shouldAnimate) {
+    return;
+  }
+
+  const destinationPiece = boardEl.querySelector(`[data-square="${snapshot.toSquare}"] .piece`);
+  const destinationRect = destinationPiece?.getBoundingClientRect();
+  if (!destinationPiece || !destinationRect) {
+    state.animating = false;
+    render();
+    return;
+  }
+
+  destinationPiece.classList.add("piece--animation-target");
+  const movingLayer = placeAnimationPiece(snapshot.sourcePiece, snapshot.sourceRect, "piece-animation-layer");
+  const capturedLayer = snapshot.capturedPiece && snapshot.capturedRect
+    ? placeAnimationPiece(snapshot.capturedPiece, snapshot.capturedRect, "piece-animation-layer piece-animation-layer--captured")
+    : null;
+  const deltaX = destinationRect.left - snapshot.sourceRect.left;
+  const deltaY = destinationRect.top - snapshot.sourceRect.top;
+  const movement = movingLayer.animate(
+    [{ transform: "translate3d(0, 0, 0)" }, { transform: `translate3d(${deltaX}px, ${deltaY}px, 0)` }],
+    { duration: MOVE_ANIMATION_MS, easing: "cubic-bezier(.22,.75,.25,1)", fill: "forwards" },
+  );
+  const captureTimer = window.setTimeout(() => capturedLayer?.remove(), MOVE_ANIMATION_MS / 2);
+
+  try {
+    await movement.finished;
+  } catch {
+    // A reset or navigation can cancel an in-flight animation.
+  } finally {
+    window.clearTimeout(captureTimer);
+    capturedLayer?.remove();
+    movingLayer.remove();
+    destinationPiece.classList.remove("piece--animation-target");
+    state.animating = false;
+    render();
+  }
 }
 
 function updateWinnerState() {
@@ -490,6 +579,7 @@ function executePseudoMove(from, to, promotion) {
     matchedMove.promotion = promotion;
   }
 
+  moveAnimationSnapshots.set(matchedMove, getMoveAnimationSnapshot(fromSquare, toSquare, matchedMove));
   game._makeMove(matchedMove);
   playMoveSound(Boolean(matchedMove.captured));
   updateWinnerState();
@@ -500,7 +590,9 @@ function render() {
   renderBoard();
   renderHistory();
   updateStatus();
-  undoBtn.disabled = state.aiThinking || isGameOver() || game._history.length < 2;
+  undoBtn.disabled = state.aiThinking || state.animating || isGameOver() || game._history.length < 2;
+  resetBtn.disabled = state.animating;
+  backBtn.disabled = state.animating;
 }
 
 function showGame(mode) {
@@ -550,7 +642,7 @@ function showLanding() {
   render();
 }
 
-function attemptMove(from, to) {
+async function attemptMove(from, to) {
   if (isPromotionMove(from, to)) {
     showPromotionPicker(from, to);
     return true;
@@ -562,13 +654,13 @@ function attemptMove(from, to) {
   }
 
   clearSelection();
-  render();
+  await animateCommittedMove(move);
   maybeRunAiMove();
   return true;
 }
 
 function onSquareClick(square) {
-  if (!state.mode || state.aiThinking || isGameOver()) {
+  if (!state.mode || state.aiThinking || state.animating || isGameOver()) {
     return;
   }
 
@@ -593,7 +685,7 @@ function onSquareClick(square) {
 }
 
 function undoTwoPlies() {
-  if (state.aiThinking || isGameOver() || game._history.length < 2) {
+  if (state.aiThinking || state.animating || isGameOver() || game._history.length < 2) {
     return;
   }
 
@@ -876,14 +968,16 @@ function cancelAiMove() {
   state.aiThinking = false;
 }
 
-function playFirstAvailableAiMove(preferredMove) {
+async function playFirstAvailableAiMove(preferredMove) {
   const candidates = preferredMove
     ? [preferredMove, ...getOrderedMoves().map(moveToResult)]
     : getOrderedMoves().map(moveToResult);
 
   for (const move of candidates) {
     const promotion = move.promotion || (isPromotionMove(move.from, move.to) ? "q" : undefined);
-    if (executePseudoMove(move.from, move.to, promotion)) {
+    const committedMove = executePseudoMove(move.from, move.to, promotion);
+    if (committedMove) {
+      await animateCommittedMove(committedMove);
       return true;
     }
   }
@@ -902,14 +996,14 @@ function maybeRunAiMove() {
   render();
 
   let finished = false;
-  const finish = (preferredMove = null) => {
+  const finish = async (preferredMove = null) => {
     if (finished || jobId !== state.aiJobId) {
       return;
     }
 
     finished = true;
     if (!isGameOver() && game.turn() === aiColor) {
-      playFirstAvailableAiMove(preferredMove);
+      await playFirstAvailableAiMove(preferredMove);
     }
     state.aiThinking = false;
     render();
