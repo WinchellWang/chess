@@ -143,18 +143,18 @@ function playMoveSound(isCapture) {
 
   if (isCapture) {
     const master = audioContext.createGain();
-    master.gain.setValueAtTime(0.68, now);
-    master.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    master.gain.setValueAtTime(0.72, now);
+    master.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
     master.connect(audioContext.destination);
 
-    // A capture is two tightly layered, bright clicks instead of one heavy thud.
-    for (const [offset, pitch, volume] of [[0, 1, 1], [0.055, 1.12, 0.82]]) {
+    // Reuse the move timbre at a slightly lower pitch, played twice 60ms apart.
+    for (const [offset, volume] of [[0, 1], [0.06, 0.88]]) {
       const start = now + offset;
-      const noiseLength = Math.floor(audioContext.sampleRate * 0.022);
+      const noiseLength = Math.floor(audioContext.sampleRate * 0.035);
       const noiseBuffer = audioContext.createBuffer(1, noiseLength, audioContext.sampleRate);
       const noise = noiseBuffer.getChannelData(0);
       for (let i = 0; i < noiseLength; i++) {
-        const envelope = Math.pow(1 - i / noiseLength, 5);
+        const envelope = Math.pow(1 - i / noiseLength, 3);
         noise[i] = (Math.random() * 2 - 1) * envelope;
       }
 
@@ -162,20 +162,20 @@ function playMoveSound(isCapture) {
       const noiseFilter = audioContext.createBiquadFilter();
       const noiseGain = audioContext.createGain();
       noiseSource.buffer = noiseBuffer;
-      noiseFilter.type = "highpass";
-      noiseFilter.frequency.setValueAtTime(2400, start);
-      noiseFilter.Q.setValueAtTime(0.8, start);
-      noiseGain.gain.setValueAtTime(0.42 * volume, start);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, start + 0.022);
+      noiseFilter.type = "bandpass";
+      noiseFilter.frequency.setValueAtTime(1650, start);
+      noiseFilter.Q.setValueAtTime(0.9, start);
+      noiseGain.gain.setValueAtTime(volume, start);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, start + 0.035);
       noiseSource.connect(noiseFilter).connect(noiseGain).connect(master);
       noiseSource.start(start);
 
-      for (const [frequency, toneVolume, duration] of [[1320, 0.28, 0.07], [1980, 0.16, 0.045]]) {
+      for (const [frequency, toneVolume, duration] of [[215, 0.42, 0.12], [465, 0.18, 0.07]]) {
         const oscillator = audioContext.createOscillator();
         const gain = audioContext.createGain();
         oscillator.type = "sine";
-        oscillator.frequency.setValueAtTime(frequency * pitch, start);
-        oscillator.frequency.exponentialRampToValueAtTime(frequency * pitch * 1.08, start + duration);
+        oscillator.frequency.setValueAtTime(frequency, start);
+        oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.82, start + duration);
         gain.gain.setValueAtTime(toneVolume * volume, start);
         gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
         oscillator.connect(gain).connect(master);
