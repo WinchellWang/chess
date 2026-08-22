@@ -24,6 +24,8 @@ html,
 body {
   margin: 0;
   min-height: 100%;
+  max-width: 100%;
+  overflow-x: clip;
   overscroll-behavior-y: none;
   touch-action: manipulation;
   background:
@@ -35,7 +37,6 @@ body {
 
 body {
   min-height: 100vh;
-  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -89,23 +90,9 @@ body {
   margin-bottom: 0;
 }
 
-.eyebrow {
-  margin: 0 0 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--accent);
-  font-size: 0.72rem;
-}
-
-h1,
 h2,
 p {
   margin-top: 0;
-}
-
-h1 {
-  margin-bottom: 0;
-  font-size: clamp(2rem, 4vw, 3.2rem);
 }
 
 .page-title {
@@ -127,15 +114,6 @@ h1 {
   width: 1.05em;
   height: 1.05em;
   display: block;
-}
-
-.status {
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: rgba(118, 150, 86, 0.14);
-  border: 1px solid rgba(118, 150, 86, 0.28);
-  color: #ddf3d3;
-  white-space: nowrap;
 }
 
 .toolbar {
@@ -309,11 +287,6 @@ h1 {
   border-color: rgba(167, 227, 143, 0.36);
 }
 
-.toolbar__btn--active {
-  background: linear-gradient(180deg, rgba(118, 150, 86, 0.4), rgba(118, 150, 86, 0.2));
-  border-color: rgba(167, 227, 143, 0.45);
-}
-
 .board-wrap {
   display: grid;
   grid-template-columns: 1fr;
@@ -461,29 +434,6 @@ h1 {
 
 .card p:last-child {
   margin-bottom: 0;
-}
-
-.info-grid {
-  display: grid;
-  gap: 14px;
-}
-
-.info-grid div {
-  display: grid;
-  gap: 4px;
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.info-grid span {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.info-grid strong {
-  font-size: 1.05rem;
 }
 
 .history-list {
@@ -660,13 +610,8 @@ h1 {
 }
 
 @media (max-width: 1080px) and (orientation: portrait) {
-  /* Keep the board itself aligned with the sidebar card. The rank labels
-     occupy a gutter that extends to the left of both content blocks. */
   .board-wrap {
-    width: calc(100% + var(--board-gutter));
-    max-width: none;
-    margin-left: calc(-1 * var(--board-gutter));
-    margin-right: 0;
+    width: min(100%, calc(680px + var(--board-gutter)));
   }
 
   .board {
@@ -683,6 +628,10 @@ h1 {
     padding: 12px;
   }
 
+  .game-active .shell {
+    padding-inline: max(8px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-right));
+  }
+
   .panel {
     padding: 0;
   }
@@ -693,6 +642,11 @@ h1 {
 
   .page-title {
     font-size: clamp(2.1rem, 7vw, 2.8rem);
+  }
+
+  .toolbar__btn--inline {
+    padding: 0.65em 0.8em;
+    font-size: 1rem;
   }
 
   .mode-grid {

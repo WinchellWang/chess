@@ -524,6 +524,7 @@ function showGame(mode) {
   clearSelection();
   landingEl.classList.add("is-hidden");
   gameViewEl.classList.remove("is-hidden");
+  document.body.classList.add("game-active");
   siteFooter.classList.add("is-hidden");
   game.reset();
   render();
@@ -538,6 +539,7 @@ function showAiGame(humanColor) {
   clearSelection();
   landingEl.classList.add("is-hidden");
   gameViewEl.classList.remove("is-hidden");
+  document.body.classList.add("game-active");
   siteFooter.classList.add("is-hidden");
   game.reset();
   render();
@@ -553,6 +555,7 @@ function showLanding() {
   clearSelection();
   game.reset();
   gameViewEl.classList.add("is-hidden");
+  document.body.classList.remove("game-active");
   landingEl.classList.remove("is-hidden");
   siteFooter.classList.remove("is-hidden");
   render();
