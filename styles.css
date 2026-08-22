@@ -399,6 +399,7 @@ p {
 
 .sidebar h2 {
   margin-bottom: 8px;
+  margin-left: 10px;
 }
 
 .card {
@@ -430,15 +431,15 @@ p {
 
 .history-empty {
   color: var(--muted);
-  padding: 10px 0;
+  padding: 10px;
 }
 
 .history-row {
   display: grid;
-  grid-template-columns: 32px max-content max-content;
+  grid-template-columns: 32px minmax(0, 1fr) minmax(0, 1fr);
   min-height: 44px;
   align-items: center;
-  column-gap: 8px;
+  column-gap: 12px;
   padding: 6px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.03);
