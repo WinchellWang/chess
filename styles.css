@@ -370,8 +370,8 @@ p {
   filter: var(--piece-shadow);
 }
 
-.board.is-pvp .piece--black,
-.piece-animation-layer.is-pvp .piece--black {
+.board.is-pvp-opponent-view .piece--black,
+.piece-animation-layer.is-pvp-opponent-view .piece--black {
   transform: rotate(180deg);
 }
 
@@ -651,9 +651,13 @@ p {
     grid-template-columns: 1fr;
   }
 
-  .sidebar {
-    width: calc(100% - var(--board-gutter));
-    margin-left: var(--board-gutter);
+  /* Keep the board itself aligned with Move History. The rank labels occupy
+     the page margin to the board's left while remaining flush with it. */
+  .board-wrap {
+    width: calc(100% + var(--board-gutter));
+    max-width: none;
+    margin-left: calc(-1 * var(--board-gutter));
+    margin-right: 0;
   }
 
   .game-actions {

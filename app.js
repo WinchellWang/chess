@@ -9,7 +9,7 @@ const AI_MOVE_HARD_TIMEOUT_MS = 5000;
 const AI_SEARCH_YIELD_EVERY_NODES = 128;
 const AI_NEAR_BEST_MARGIN = 90;
 const AI_SEARCH_TIMEOUT = Symbol("AI_SEARCH_TIMEOUT");
-const MOVE_ANIMATION_MS = 380;
+const MOVE_ANIMATION_MS = 300;
 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 let audioContext = null;
 const moveAnimationSnapshots = new WeakMap();
@@ -261,6 +261,10 @@ function getAiColor() {
   return state.mode === "ai" ? (state.humanColor === "w" ? "b" : "w") : null;
 }
 
+function shouldRotateBlackPieces() {
+  return state.mode === "human" && window.matchMedia("(pointer: coarse)").matches;
+}
+
 function isGameOver() {
   return Boolean(state.winner);
 }
@@ -415,7 +419,7 @@ function updateStatus() {
 }
 
 function renderBoard() {
-  boardEl.classList.toggle("is-pvp", state.mode === "human");
+  boardEl.classList.toggle("is-pvp-opponent-view", shouldRotateBlackPieces());
   const selected = state.selected;
   const legalTargets = new Map(state.legalMoves.map((move) => [move.square, move.capture]));
 
@@ -469,7 +473,7 @@ function getMoveAnimationSnapshot(fromSquare, toSquare, matchedMove) {
 
 function placeAnimationPiece(piece, rect, className) {
   const layer = document.createElement("div");
-  layer.className = `${className}${state.mode === "human" ? " is-pvp" : ""}`;
+  layer.className = `${className}${shouldRotateBlackPieces() ? " is-pvp-opponent-view" : ""}`;
   layer.style.left = `${rect.left}px`;
   layer.style.top = `${rect.top}px`;
   layer.style.width = `${rect.width}px`;
@@ -511,7 +515,7 @@ async function animateCommittedMove(move) {
   const deltaY = destinationRect.top - snapshot.sourceRect.top;
   const movement = movingLayer.animate(
     [{ transform: "translate3d(0, 0, 0)" }, { transform: `translate3d(${deltaX}px, ${deltaY}px, 0)` }],
-    { duration: MOVE_ANIMATION_MS, easing: "cubic-bezier(.22,.75,.25,1)", fill: "forwards" },
+    { duration: MOVE_ANIMATION_MS, easing: "linear", fill: "forwards" },
   );
   const captureTimer = window.setTimeout(() => capturedLayer?.remove(), MOVE_ANIMATION_MS / 2);
 
