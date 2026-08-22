@@ -5,8 +5,7 @@ A static chess web app that supports:
 - Local human vs human play
 - Local human vs AI play
 - Highlighted legal move targets after selecting a piece
-- PvP Undo removes one move
-- PvE Undo removes the latest human/AI pair and is available only on the human turn
+- Undo in both modes
 
 ## Run locally with Docker
 
@@ -16,6 +15,6 @@ docker compose up --build
 
 Open:
 
-```text
+```bash
 http://localhost:8080
 ```
