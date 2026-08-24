@@ -26,7 +26,7 @@ jobs:
       - name: Build static site
         run: |
           mkdir _site
-          cp index.html app.js styles.css about.md manifest.webmanifest _site/
+          cp index.html app.js styles.css about.md manifest.webmanifest sw.js _site/
           cp -R assets vendor _site/
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
