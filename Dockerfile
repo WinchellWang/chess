@@ -6,6 +6,7 @@ COPY about.md ./about.md
 COPY manifest.webmanifest ./manifest.webmanifest
 COPY styles.css ./styles.css
 COPY app.js ./app.js
+COPY sw.js ./sw.js
 COPY assets ./assets
 COPY vendor ./vendor
 
