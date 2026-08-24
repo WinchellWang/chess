@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chess-arena-v1';
+const CACHE_NAME = 'chess-arena-v2';
 
 const APP_SHELL = [
   './',
@@ -27,7 +27,13 @@ const APP_SHELL = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
+      .then((cache) => Promise.all(APP_SHELL.map(async (url) => {
+        try {
+          await cache.add(url);
+        } catch (error) {
+          console.warn('Unable to precache ' + url + ':', error);
+        }
+      })))
       .then(() => self.skipWaiting()),
   );
 });

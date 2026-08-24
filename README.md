@@ -19,6 +19,3 @@ Open:
 ```bash
 http://localhost:8080
 ```
-
-After the first successful load, the app shell and chess assets are cached by a
-Service Worker. The installed PWA can then be reopened and played offline.
