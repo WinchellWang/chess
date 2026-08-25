@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Chess Arena",
   "short_name": "Chess",
-  "description": "Play chess locally against another player or the computer.",
+  "description": "Play free browser chess locally against a friend or a beginner-friendly computer opponent.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

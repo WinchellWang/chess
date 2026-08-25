@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://winchellwang.github.io/chess/sitemap.xml
