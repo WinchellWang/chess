@@ -642,6 +642,47 @@ p {
   transform: translateY(-1px);
 }
 
+@media (orientation: landscape) {
+  body.game-active {
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: hidden;
+  }
+
+  body.game-active .shell {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .panel--game {
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .game-layout {
+    min-height: 0;
+    container-type: size;
+  }
+
+  .board-wrap {
+    width: min(100%, 100cqh);
+  }
+
+  .board-axes--bottom {
+    height: var(--board-gutter);
+  }
+
+  .board-axes--bottom span {
+    aspect-ratio: auto;
+  }
+
+  .sidebar {
+    max-height: 100%;
+    overflow-y: auto;
+  }
+}
+
 @media (orientation: portrait) {
   .page-title {
     font-size: clamp(2.1rem, 7vw, 2.8rem);
