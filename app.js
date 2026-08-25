@@ -55,6 +55,7 @@ const colorModal = document.getElementById("colorModal");
 const aboutContent = document.getElementById("aboutContent");
 const copyrightYear = document.getElementById("copyrightYear");
 const siteFooter = document.querySelector(".site-footer");
+const pageReloadButtons = document.querySelectorAll(".page-title__reload");
 
 function escapeHtml(value) {
   return value
@@ -1107,6 +1108,9 @@ startAiBlackBtn.addEventListener("click", () => showAiGame("b"));
 backBtn.addEventListener("click", showLanding);
 undoBtn.addEventListener("click", undoMove);
 resetBtn.addEventListener("click", restartGame);
+pageReloadButtons.forEach((button) => {
+  button.addEventListener("click", () => window.location.reload());
+});
 promotionModal.addEventListener("click", (event) => {
   if (event.target === promotionModal || event.target.classList.contains("promotion-modal__backdrop")) {
     clearPromotion();
