@@ -43,9 +43,6 @@ body {
 
 .shell {
   min-height: 100vh;
-  width: 100%;
-  max-width: 95dvh;
-  max-width: 95vh;
   display: grid;
   grid-template-columns: 1fr;
   align-content: start;
