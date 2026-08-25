@@ -652,6 +652,8 @@ p {
   body.game-active .shell {
     height: 100vh;
     height: 100dvh;
+    grid-template-rows: minmax(0, 1fr);
+    align-content: stretch;
   }
 
   .panel--game {
