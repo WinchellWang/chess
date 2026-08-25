@@ -302,6 +302,7 @@ p {
 }
 
 .board {
+  position: relative;
   width: 100%;
   flex: 1 1 auto;
   min-width: 0;
@@ -380,7 +381,7 @@ p {
 }
 
 .piece-animation-layer {
-  position: fixed;
+  position: absolute;
   z-index: 40;
   display: grid;
   place-items: center;

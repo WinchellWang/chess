@@ -1,12 +1,12 @@
-const CACHE_NAME = 'chess-arena-v2';
+const CACHE_NAME = 'chess-arena-v3';
 
 const APP_SHELL = [
   './',
   './index.html',
   './about.md',
   './manifest.webmanifest',
-  './styles.css?v=20260822-9',
-  './app.js?v=20260822-4',
+  './styles.css?v=20260825-1',
+  './app.js?v=20260825-1',
   './vendor/chess.js',
   './assets/chess-logo.svg',
   './assets/chess-pwa-icon.svg',

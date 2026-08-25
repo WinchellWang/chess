@@ -477,12 +477,11 @@ function renderBoard() {
   const selected = state.selected;
   const legalTargets = new Map(state.legalMoves.map((move) => [move.square, move.capture]));
 
-  Array.from(boardEl.children).forEach((squareEl) => {
+  boardEl.querySelectorAll(":scope > .square").forEach((squareEl) => {
     const square = squareEl.dataset.square;
     const piece = game.get(square);
+    const pieceEl = squareEl.querySelector(".piece");
     squareEl.classList.remove("selected", "move", "capture", "white-piece", "black-piece");
-    squareEl.innerHTML = "";
-
     if (selected === square) {
       squareEl.classList.add("selected");
     }
@@ -493,11 +492,23 @@ function renderBoard() {
 
     if (piece) {
       squareEl.classList.add(piece.color === "w" ? "white-piece" : "black-piece");
-      const pieceEl = document.createElement("img");
-      pieceEl.className = `piece piece--${piece.color === "w" ? "white" : "black"}`;
-      pieceEl.src = PIECE_IMAGES[piece.type][piece.color];
-      pieceEl.alt = `${piece.color === "w" ? "White" : "Black"} ${piece.type}`;
-      squareEl.appendChild(pieceEl);
+      const pieceKey = `${piece.color}${piece.type}`;
+
+      // Keep unchanged images mounted. Recreating every SVG on every render can
+      // cause a visible full-board repaint, especially in WebKit browsers.
+      if (pieceEl?.dataset.piece === pieceKey) {
+        return;
+      }
+
+      const nextPieceEl = document.createElement("img");
+      nextPieceEl.className = `piece piece--${piece.color === "w" ? "white" : "black"}`;
+      nextPieceEl.dataset.piece = pieceKey;
+      nextPieceEl.src = PIECE_IMAGES[piece.type][piece.color];
+      nextPieceEl.alt = `${piece.color === "w" ? "White" : "Black"} ${piece.type}`;
+      pieceEl?.remove();
+      squareEl.appendChild(nextPieceEl);
+    } else {
+      pieceEl?.remove();
     }
   });
 }
@@ -526,14 +537,15 @@ function getMoveAnimationSnapshot(fromSquare, toSquare, matchedMove) {
 }
 
 function placeAnimationPiece(piece, rect, className) {
+  const boardRect = boardEl.getBoundingClientRect();
   const layer = document.createElement("div");
   layer.className = `${className}${shouldRotateBlackPieces() ? " is-pvp-opponent-view" : ""}`;
-  layer.style.left = `${rect.left}px`;
-  layer.style.top = `${rect.top}px`;
+  layer.style.left = `${rect.left - boardRect.left - boardEl.clientLeft}px`;
+  layer.style.top = `${rect.top - boardRect.top - boardEl.clientTop}px`;
   layer.style.width = `${rect.width}px`;
   layer.style.height = `${rect.height}px`;
   layer.appendChild(piece);
-  document.body.appendChild(layer);
+  boardEl.appendChild(layer);
   return layer;
 }
 
